@@ -87,6 +87,9 @@ export function handleDirective(card: LexCard, acc: ParseAccumulator): void {
     case ".tf":
       target(acc).analyses.push(parseTf(card));
       return;
+    case ".noise":
+      target(acc).analyses.push(parseNoise(card));
+      return;
     case ".ic":
       parseIc(card, acc);
       return;
@@ -420,6 +423,59 @@ function parseTf(card: LexCard): AnalysisRequest {
   }
   const source = (t[srcIdx] as CardToken).text;
   return { kind: "tf", output, source };
+}
+
+/**
+ * .noise v(out[,ref]) src dec|oct|lin points fstart fstop
+ * (ngspice order: output, input source, then the sweep).
+ */
+function parseNoise(card: LexCard): AnalysisRequest {
+  const t = card.tokens;
+  if (t.length < 3) {
+    throw new FAIL(
+      ".noise expects .noise v(out[,ref])|i(src) src sweep points fstart fstop",
+      card.startLine,
+      1,
+    );
+  }
+  // Rejoin a comma-split v(a,b) output spec.
+  const first = (t[1] as CardToken).text.toLowerCase();
+  let output = first;
+  let idx = 2;
+  if (/^v\([^,)]*$/.test(first)) {
+    const parts: string[] = [first];
+    while (idx < t.length && !(parts[parts.length - 1] as string).includes(")")) {
+      parts.push((t[idx] as CardToken).text);
+      idx += 1;
+    }
+    output = parts.join("");
+  }
+  if (idx + 4 >= t.length) {
+    throw new FAIL(
+      ".noise expects output, source, sweep, points, fstart, fstop",
+      card.startLine,
+      1,
+    );
+  }
+  const source = (t[idx] as CardToken).text;
+  const sweepTok = t[idx + 1] as CardToken | undefined;
+  const sweep = (sweepTok?.text ?? "").toLowerCase();
+  if (sweep !== "dec" && sweep !== "oct" && sweep !== "lin") {
+    throw new FAIL(
+      `Invalid .noise sweep type "${sweep}"`,
+      sweepTok?.line ?? card.startLine,
+      sweepTok?.col ?? 1,
+    );
+  }
+  return {
+    kind: "noise",
+    output,
+    source,
+    sweep,
+    points: parseValue((t[idx + 2] as CardToken).text),
+    fstart: parseValue((t[idx + 3] as CardToken).text),
+    fstop: parseValue((t[idx + 4] as CardToken).text),
+  };
 }
 
 /** .ic v(node)=value — node initial conditions for transient/uic. */

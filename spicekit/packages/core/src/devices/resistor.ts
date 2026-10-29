@@ -6,7 +6,8 @@
 
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
-import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
+import { BOLTZMANN, celsiusToKelvin } from "../math/index.ts";
+import type { AcStamp, Device, DeviceEnv, MatrixStamp, NoiseSource } from "./base.ts";
 import { stampConductance, stampConductanceAc } from "./base.ts";
 
 export function resistorDevice(ce: CompiledElement, options: SimOptions): Device {
@@ -15,6 +16,8 @@ export function resistorDevice(ce: CompiledElement, options: SimOptions): Device
   const conductance = 1 / ((ce.value ?? 1) * scale);
   const p = ce.nodes[0] as number;
   const n = ce.nodes[1] as number;
+  // Johnson–Nyquist thermal noise: 4kTR (A²/Hz) at the run temperature.
+  const thermalPsd = 4 * BOLTZMANN * celsiusToKelvin(options.temp) * conductance;
   return {
     name: ce.name,
     stateSlots: 0,
@@ -25,6 +28,9 @@ export function resistorDevice(ce: CompiledElement, options: SimOptions): Device
       // Resistors are frequency-independent; thermal noise is handled by the
       // noise analysis (E3), not the AC stamp.
       stampConductanceAc(stamp, p, n, conductance, 0);
+    },
+    noise(_env: DeviceEnv): NoiseSource[] {
+      return [{ p, n, psd: thermalPsd }];
     },
   };
 }

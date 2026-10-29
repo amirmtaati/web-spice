@@ -9,6 +9,7 @@ import { type AnalysisRequest, EngineError, type SimOptions } from "@spicekit/pr
 import type { CompiledCircuit } from "../compiler/index.ts";
 import { type AcOutcome, acSignals, runAc } from "./ac.ts";
 import { runDcSweep } from "./dc.ts";
+import { noiseSignals, noiseStats, runNoise } from "./noise.ts";
 import { runOp } from "./op.ts";
 import type { AnalysisKind, RunResult, SignalSeries } from "./result.ts";
 import { runTf, tfSignals, tfStats } from "./tf.ts";
@@ -46,10 +47,7 @@ export function runAnalysis(
     case "tf":
       return runTfAnalysis(ws, request);
     case "noise":
-      throw new EngineError({
-        code: "E_NOT_IMPLEMENTED",
-        message: `${request.kind} analysis lands with milestone E3 (SPEC §22)`,
-      });
+      return runNoiseAnalysis(ws, request);
     default: {
       const never: never = request;
       throw new EngineError({
@@ -103,6 +101,20 @@ function runTfAnalysis(
     axisName: "tf",
     signals: tfSignals(outcome),
     stats: tfStats(outcome),
+  };
+}
+
+function runNoiseAnalysis(
+  ws: Workspace,
+  request: Extract<AnalysisRequest, { kind: "noise" }>,
+): RunResult {
+  const outcome = runNoise(ws, request);
+  return {
+    kind: "noise",
+    axis: outcome.freqs,
+    axisName: "freq",
+    signals: noiseSignals(outcome),
+    stats: noiseStats(outcome),
   };
 }
 

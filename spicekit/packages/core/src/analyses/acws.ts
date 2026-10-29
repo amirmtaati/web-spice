@@ -94,4 +94,46 @@ export class AcWorkspace implements AcStamp {
     this.xc.set(this.rhs);
     luSolveC(this.work, this.size, this.piv, this.xc, this.scratch);
   }
+
+  /**
+   * Adjoint factorization (noise analysis): overwrite the work buffer with
+   * conj(Aᵀ) and factor it — subsequent `solveAdjoint()` yields z with
+   * Aᴴ z = rhs, i.e. z_p = conj((A⁻¹)_{row,p}) for the excited row.
+   */
+  factorAdjoint(): void {
+    const n = this.size;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const src = 2 * (j * n + i);
+        this.work[2 * (i * n + j)] = this.a[src] as number;
+        this.work[2 * (i * n + j) + 1] = -(this.a[src + 1] as number);
+      }
+    }
+    const bad = luFactorC(this.work, n, this.piv);
+    if (bad >= 0) {
+      const ws = this.ws;
+      const nodeNames = ws.compiled.nodeNames;
+      const what =
+        bad < nodeNames.length
+          ? `node "${nodeNames[bad]}"`
+          : `branch of ${ws.compiled.branchOwners[bad - nodeNames.length] ?? "?"}`;
+      throw new EngineError({
+        code: "E_SINGULAR_MATRIX",
+        message: `Singular adjoint matrix in noise analysis at ${what}`,
+      });
+    }
+    this.factored = true;
+  }
+
+  /** Solve Aᴴ z = rhs (current rhs) into xc using the adjoint factors. */
+  solveAdjoint(): void {
+    if (!this.factored) {
+      throw new EngineError({
+        code: "E_SINGULAR_MATRIX",
+        message: "solveAdjoint() before factorAdjoint()",
+      });
+    }
+    luSolveC(this.work, this.size, this.piv, this.rhs, this.scratch);
+    this.xc.set(this.rhs);
+  }
 }

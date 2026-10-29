@@ -61,6 +61,18 @@ export type LteUnit = "A" | "V";
  */
 export type AcStampFn = (m: AcStamp, env: DeviceEnv, omega: number) => void;
 
+/**
+ * One small-signal noise source of a device (E3 noise analysis): a current
+ * source of power spectral density `psd` (A²/Hz) between MNA offsets
+ * (p, n) — ground = −1. The analysis computes each source's transfer to the
+ * output through the adjoint system.
+ */
+export interface NoiseSource {
+  p: number;
+  n: number;
+  psd: number;
+}
+
 export interface Device {
   readonly name: string;
   readonly stateSlots: number;
@@ -70,6 +82,8 @@ export interface Device {
   stampTran?(m: MatrixStamp, env: DeviceEnv, h: number, method: IntegrationMethod): void;
   /** Small-signal AC stamp at angular frequency ω (E3). */
   stampAc?: AcStampFn;
+  /** Noise sources at the operating point (E3; per frequency for 1/f). */
+  noise?(env: DeviceEnv, freqHz: number): NoiseSource[];
   /**
    * Junction limiting before the stamp (SPEC §5.3, ngspice semantics): read
    * the junction voltages from the current iterate (env.x), clamp them

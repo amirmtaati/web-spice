@@ -43,8 +43,8 @@
 
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
-import { abs } from "../math/index.ts";
-import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
+import { abs, BOLTZMANN, CHARGE, celsiusToKelvin } from "../math/index.ts";
+import type { AcStamp, Device, DeviceEnv, MatrixStamp, NoiseSource } from "./base.ts";
 import { stampCapacitanceAc, stampConductance, stampConductanceAc } from "./base.ts";
 import { type CapRef, JunctionCap, resolveCapRef, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
@@ -106,6 +106,8 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
   const tf = mp.tf ?? 0;
   const tr = mp.tr ?? 0;
   const fc = mp.fc ?? 0.5;
+  const kf = mp.kf ?? 0;
+  const af = mp.af ?? 1;
 
   const vt = thermalVoltage(options.temp);
   const beJunction: BjtJunction = { is, n: nf, vt };
@@ -295,6 +297,55 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
       const cp = resolveCapRef(env, cRef);
       stampCapacitanceAc(stamp, bp, ep, cBe + cBeDif, omega);
       stampCapacitanceAc(stamp, bp, cp, cBc + cBcDif, omega);
+    },
+    noise(env: DeviceEnv, freqHz: number): NoiseSource[] {
+      // Shot noise on both junctions, thermal of the parasitic resistors,
+      // and flicker on the collector current (ngspice placement).
+      const st = env.stateBase;
+      const vbe0 = env.state[st + VBE0] as number;
+      const vbc0 = env.state[st + VBC0] as number;
+      const o = offsets(env);
+      const sources: NoiseSource[] = [];
+      // Junction currents with gmin folded in (match the DC evaluation).
+      const be = diodeConduction(vbe0, beJunction);
+      const bc = diodeConduction(vbc0, bcJunction);
+      const iBe = Math.max(be.i + gmin * vbe0, 0);
+      const iBc = Math.max(bc.i + gmin * vbc0, 0);
+      sources.push({ p: o.b, n: o.e, psd: 2 * CHARGE * iBe });
+      sources.push({ p: o.b, n: o.c, psd: 2 * CHARGE * iBc });
+      if (hasRb) {
+        sources.push({
+          p: env.nodes[1] as number,
+          n: env.branches[0] as number,
+          psd: (4 * BOLTZMANN * celsiusToKelvin(options.temp)) / rb,
+        });
+      }
+      if (hasRc) {
+        sources.push({
+          p: env.nodes[0] as number,
+          n: env.branches[hasRb ? 1 : 0] as number,
+          psd: (4 * BOLTZMANN * celsiusToKelvin(options.temp)) / rc,
+        });
+      }
+      if (hasRe) {
+        sources.push({
+          p: env.nodes[2] as number,
+          n: env.branches[(hasRb ? 1 : 0) + (hasRc ? 1 : 0)] as number,
+          psd: (4 * BOLTZMANN * celsiusToKelvin(options.temp)) / re,
+        });
+      }
+      if (kf > 0) {
+        const s = solveDc(vbe0, vbc0);
+        const ic = Math.max(s.cc, 0);
+        if (ic > 0) {
+          sources.push({
+            p: o.c,
+            n: o.e,
+            psd: (kf * ic ** af) / Math.max(freqHz, 1e-6),
+          });
+        }
+      }
+      return sources;
     },
     accept(env: DeviceEnv): void {
       beCap.accept(env);

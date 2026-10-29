@@ -29,8 +29,15 @@
 
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
-import { abs } from "../math/index.ts";
-import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
+import { abs, BOLTZMANN, celsiusToKelvin } from "../math/index.ts";
+import type {
+  AcStamp,
+  Device,
+  DeviceEnv,
+  IntegrationMethod,
+  MatrixStamp,
+  NoiseSource,
+} from "./base.ts";
 import { nodePotential, stampCapacitanceAc } from "./base.ts";
 import { JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
@@ -82,6 +89,8 @@ export function mosfetDevice(ce: CompiledElement, options: SimOptions): Device {
   const pb = mp.pb ?? 0.8;
   const mj = mp.mj ?? 0.5;
   const fc = mp.fc ?? 0.5;
+  const kf = mp.kf ?? 0;
+  const af = mp.af ?? 1;
 
   const w = ce.w ?? DEFAULT_W;
   const l = ce.l ?? DEFAULT_L;
@@ -356,6 +365,30 @@ export function mosfetDevice(ce: CompiledElement, options: SimOptions): Device {
       stampCapacitanceAc(stamp, gNode, sNode, cgs, omega);
       stampCapacitanceAc(stamp, gNode, dNode, cgd, omega);
       stampCapacitanceAc(stamp, gNode, bNode, cgb, omega);
+    },
+    noise(env: DeviceEnv, freqHz: number): NoiseSource[] {
+      // Level-1 channel thermal noise (8/3)kT·gm between d and s, plus
+      // flicker on the drain current when the model sets KF.
+      const st = env.stateBase;
+      const vgs = env.state[st + VGS0] as number;
+      const vds = env.state[st + VDS0] as number;
+      const vbs = env.state[st + VBS0] as number;
+      const s = solveDc(vgs, vds, vbs);
+      const sources: NoiseSource[] = [
+        {
+          p: dNode,
+          n: sNode,
+          psd: (8 / 3) * BOLTZMANN * celsiusToKelvin(options.temp) * Math.max(s.gm, 0),
+        },
+      ];
+      if (kf > 0 && s.cdrain > 0) {
+        sources.push({
+          p: dNode,
+          n: sNode,
+          psd: (kf * s.cdrain ** af) / Math.max(freqHz, 1e-6),
+        });
+      }
+      return sources;
     },
     accept(env: DeviceEnv): void {
       capS.accept(env);

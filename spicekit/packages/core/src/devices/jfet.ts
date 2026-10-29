@@ -33,8 +33,15 @@
 
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
-import { abs } from "../math/index.ts";
-import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
+import { abs, BOLTZMANN, celsiusToKelvin } from "../math/index.ts";
+import type {
+  AcStamp,
+  Device,
+  DeviceEnv,
+  IntegrationMethod,
+  MatrixStamp,
+  NoiseSource,
+} from "./base.ts";
 import { nodePotential, stampCapacitanceAc } from "./base.ts";
 import { JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
@@ -85,6 +92,8 @@ export function jfetDevice(ce: CompiledElement, options: SimOptions): Device {
   const pb = mp.pb ?? 1;
   const mj = mp.m ?? 0.5;
   const fc = mp.fc ?? 0.5;
+  const kf = mp.kf ?? 0;
+  const af = mp.af ?? 1;
 
   const vt = thermalVoltage(options.temp);
   const vcrit = junctionVcrit(vt, isGate);
@@ -269,6 +278,29 @@ export function jfetDevice(ce: CompiledElement, options: SimOptions): Device {
       const cgdCap = cgd0 > 0 ? depletionCapacitance(vgd, { ...capModel, cj0: cgd0 }) : 0;
       stampCapacitanceAc(stamp, gNode, sNode, cgsCap, omega);
       stampCapacitanceAc(stamp, gNode, dNode, cgdCap, omega);
+    },
+    noise(env: DeviceEnv, freqHz: number): NoiseSource[] {
+      // Channel thermal noise (8/3)kT·gm (ngspice jfet, b = 1 shot term is
+      // zero for the gate at DC reverse bias) plus flicker on Id.
+      const st = env.stateBase;
+      const vgs = env.state[st + VGS0] as number;
+      const vgd = env.state[st + VGD0] as number;
+      const s = solveDc(vgs, vgd);
+      const sources: NoiseSource[] = [
+        {
+          p: dNode,
+          n: sNode,
+          psd: (8 / 3) * BOLTZMANN * celsiusToKelvin(options.temp) * Math.max(s.gm, 0),
+        },
+      ];
+      if (kf > 0 && s.cdrain > 0) {
+        sources.push({
+          p: dNode,
+          n: sNode,
+          psd: (kf * s.cdrain ** af) / Math.max(freqHz, 1e-6),
+        });
+      }
+      return sources;
     },
     accept(env: DeviceEnv): void {
       capGS.accept(env);

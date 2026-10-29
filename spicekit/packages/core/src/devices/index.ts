@@ -27,6 +27,7 @@ export type {
   IntegrationMethod,
   LteUnit,
   MatrixStamp,
+  NoiseSource,
 } from "./base.ts";
 
 /** Build the device list from compiled elements, in element order. */

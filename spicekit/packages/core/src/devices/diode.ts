@@ -30,7 +30,7 @@
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs, BOLTZMANN, CHARGE, celsiusToKelvin, exp } from "../math/index.ts";
-import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, MatrixStamp, NoiseSource } from "./base.ts";
 import { branchVoltage, stampConductance, stampConductanceAc } from "./base.ts";
 import { JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
@@ -68,6 +68,8 @@ export function diodeDevice(ce: CompiledElement, options: SimOptions): Device {
   const tt = mp.tt ?? 0;
   const eg = mp.eg ?? 1.11;
   const xti = mp.xti ?? 3;
+  const kf = mp.kf ?? 0;
+  const af = mp.af ?? 1;
 
   // Saturation current at the run temperature (tnom from options).
   const tK = celsiusToKelvin(options.temp);
@@ -182,6 +184,20 @@ export function diodeDevice(ce: CompiledElement, options: SimOptions): Device {
       const cDep = depletionCapacitance(v, capModel);
       const cDif = diffusionCapacitance(v, tt, junction);
       stampConductanceAc(stamp, p, n, g, omega * (cDep + cDif));
+    },
+    noise(env: DeviceEnv, freqHz: number): NoiseSource[] {
+      // Shot noise of the junction current plus flicker (1/f) when the model
+      // sets KF. The series-resistance thermal contribution is folded into
+      // the composite in ngspice via an internal node; here it is omitted
+      // (documented E3 simplification for the folded-RS formulation).
+      const vj = env.state[env.stateBase + VJ] as number;
+      const { i: id } = junctionBlock(Math.max(vj, 0));
+      const idPos = Math.max(id, 0);
+      const sources: NoiseSource[] = [{ p, n, psd: 2 * CHARGE * idPos }];
+      if (kf > 0 && idPos > 0) {
+        sources.push({ p, n, psd: (kf * idPos ** af) / Math.max(freqHz, 1e-6) });
+      }
+      return sources;
     },
     accept(env: DeviceEnv): void {
       const v = branchVoltage(env, 0, 1);
