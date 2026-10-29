@@ -17,6 +17,7 @@
     "dist"
   ],
   "dependencies": {
+    "@spicekit/core": "workspace:*",
     "@spicekit/protocol": "workspace:*"
   }
 }

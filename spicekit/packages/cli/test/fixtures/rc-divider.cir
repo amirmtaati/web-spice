@@ -1,0 +1,9 @@
+RC Divider
+
+V1 in 0 PULSE(0 5 0 1n 1n 10m 20m)
+R1 in out 1k
+C1 out 0 100n
+.op
+.tran 10u 3e-4 uic
+.probe v(out)
+.end

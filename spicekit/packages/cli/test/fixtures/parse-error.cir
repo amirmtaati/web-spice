@@ -1,0 +1,4 @@
+Broken netlist
+R1 a 0 1k
+Z1 a 0 2k
+.end

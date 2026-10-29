@@ -9,6 +9,7 @@ export const ERROR_CODES = [
   "E_PARSE",
   "E_SINGULAR_MATRIX",
   "E_NO_CONVERGENCE",
+  "E_NO_GROUND",
   "E_FLOATING_NODE",
   "E_VSOURCE_LOOP",
   "E_UNKNOWN_MODEL",
@@ -25,6 +26,7 @@ export interface ErrorLocation {
   elementName?: string;
   node?: string;
   line?: number;
+  column?: number;
   componentId?: string;
 }
 

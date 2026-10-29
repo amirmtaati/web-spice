@@ -44,6 +44,7 @@
         "spicekit": "./src/index.ts",
       },
       "dependencies": {
+        "@spicekit/core": "workspace:*",
         "@spicekit/protocol": "workspace:*",
       },
     },
@@ -71,9 +72,6 @@
     "spicekit/packages/server": {
       "name": "@spicekit/server",
       "version": "0.1.0",
-      "dependencies": {
-        "@spicekit/protocol": "workspace:*",
-      },
     },
     "spicekit/packages/testing": {
       "name": "@spicekit/testing",

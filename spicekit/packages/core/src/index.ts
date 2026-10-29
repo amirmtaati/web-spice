@@ -3,23 +3,45 @@
  */
 
 export type { EngineAdapter, LoadOutcome } from "./adapter.ts";
-export { type AnalysisKind, type AnalysisProgress, runAnalysis } from "./analyses/index.ts";
-export { type CompiledCircuit, compile } from "./compiler/index.ts";
 export {
-  DEVICE_LIBRARY_V1,
+  type AnalysisKind,
+  type AnalysisProgress,
+  type RunResult,
+  runAnalysis,
+  type SignalSeries,
+} from "./analyses/index.ts";
+export { type CompiledCircuit, type CompiledElement, compile } from "./compiler/index.ts";
+export {
+  buildDevices,
   type Device,
-  type DeviceKind,
+  type DeviceEnv,
   type IntegrationMethod,
-  type StampContext,
-  type StateContext,
+  type MatrixStamp,
 } from "./devices/index.ts";
-export { abs, cos, exp, sin, sqrt, TAU, vThermal } from "./math/index.ts";
+export { describeError, loadCircuit, simulateCircuit, simulateNetlist } from "./engine.ts";
+export {
+  compileExpression,
+  type EvalContext,
+  ParamScope,
+  resolveExpr,
+} from "./eval/index.ts";
+export {
+  abs,
+  cos,
+  exp,
+  sin,
+  sqrt,
+  TAU,
+  vThermal,
+} from "./math/index.ts";
 export type { ParseDiagnostics, ParseResult } from "./parser/index.ts";
 export {
+  formatExact,
   formatValue,
   parseNetlist,
   parseValue,
   SuffixParseError,
   serializeNetlist,
+  tryParseNetlist,
 } from "./parser/index.ts";
 export { luFactor, luSolve } from "./solver/index.ts";

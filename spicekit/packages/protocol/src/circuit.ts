@@ -19,6 +19,8 @@ export interface Circuit {
   options: SimOptions;
   analyses: AnalysisRequest[];
   probes: ProbeSpec[];
+  /** Node initial conditions from `.ic v(n)=value` (SPEC §5.5). */
+  ic?: Record<NodeId, number>;
   /** element/node name -> UI component id, for error pinning (SPEC §9.8). */
   sourceMap?: Record<string, string>;
 }

@@ -13,7 +13,5 @@
   "files": [
     "dist"
   ],
-  "dependencies": {
-    "@spicekit/protocol": "workspace:*"
-  }
+  "dependencies": {}
 }

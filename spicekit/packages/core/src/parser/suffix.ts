@@ -76,6 +76,37 @@ export function parseValue(token: string): number {
 }
 
 /**
+ * Strict numeric token parse for expressions: mantissa + optional single
+ * engineering suffix and *nothing else* ("1k" → 1000, "2e3" → 2000, but
+ * "2pi" and "10kohm" are rejected). Expression syntax requires an explicit
+ * operator, so looser unit-tolerance would silently mis-parse ("2pi" → 2).
+ * Returns undefined when `token` is not a strict SPICE number.
+ */
+export function tryParseSpiceNumber(token: string): number | undefined {
+  const s = token.trim();
+  // Group 1 = mantissa INCLUDING exponent ("1e3" must evaluate as 1000).
+  const match = /^((?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(.*)$/.exec(s);
+  if (match === null) {
+    return undefined;
+  }
+  const mantissa = Number(match[1]);
+  if (!Number.isFinite(mantissa)) {
+    return undefined;
+  }
+  const tail = (match[2] ?? "").toLowerCase();
+  if (tail.length === 0) {
+    return mantissa;
+  }
+  for (const suffix of ORDERED_SUFFIXES) {
+    if (tail === suffix) {
+      const factor = FACTORS[suffix];
+      return factor === undefined ? undefined : mantissa * factor;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Format a number using engineering notation with the shortest exact-ish
  * representation (3 significant digits by default). Inverse of `parseValue`
  * for values in the suffix range 1e-15…1e12; property-tested (SPEC §13.3).
@@ -89,16 +120,16 @@ export function formatValue(value: number, significantDigits = 3): string {
   }
   const abs = Math.abs(value);
   if (abs >= 1e12) {
-    return trim(value / 1e12, significantDigits) + "T";
+    return `${trim(value / 1e12, significantDigits)}T`;
   }
   if (abs >= 1e9) {
-    return trim(value / 1e9, significantDigits) + "G";
+    return `${trim(value / 1e9, significantDigits)}G`;
   }
   if (abs >= 1e6) {
-    return trim(value / 1e6, significantDigits) + "MEG";
+    return `${trim(value / 1e6, significantDigits)}MEG`;
   }
   if (abs >= 1e3) {
-    return trim(value / 1e3, significantDigits) + "k";
+    return `${trim(value / 1e3, significantDigits)}k`;
   }
   if (abs >= 1) {
     return trim(value, significantDigits);
@@ -121,4 +152,27 @@ export function formatValue(value: number, significantDigits = 3): string {
 function trim(x: number, digits: number): string {
   const rounded = Number(x.toPrecision(digits));
   return String(rounded);
+}
+
+/**
+ * Exact round-trip formatting for serialization: prefer a pretty engineering
+ * form, but verify it reparses to the identical double; otherwise fall back
+ * to JS shortest-round-trip (`String(number)`), which is always exact. This
+ * is what makes the parse(serialize(ir)) == IR property hold bit-for-bit.
+ */
+export function formatExact(value: number): string {
+  if (!Number.isFinite(value)) {
+    return String(value);
+  }
+  const candidates = [String(value), formatValue(value, 17), formatValue(value, 15)];
+  for (const candidate of candidates) {
+    try {
+      if (parseValue(candidate) === value) {
+        return candidate;
+      }
+    } catch {
+      // fall through to the next candidate
+    }
+  }
+  return String(value);
 }

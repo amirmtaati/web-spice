@@ -1,64 +1,80 @@
 /**
- * Uniform device interface (SPEC §5.3). Stamps write into preallocated
- * matrices owned by the stamp context — devices never allocate in hot loops.
+ * Device factory (SPEC §5.3/§5.7): builds the device list from compiled
+ * elements. The Device contract and stamp helpers live in `base.ts` so the
+ * per-device modules never depend on this hub (no import cycles).
  */
 
-export type IntegrationMethod = "be" | "trap" | "gear2";
+import { EngineError } from "@spicekit/protocol";
+import type { CompiledCircuit, CompiledElement } from "../compiler/index.ts";
+import type { Device } from "./base.ts";
+import { capacitorDevice } from "./capacitor.ts";
+import { dependentDevice } from "./dependent.ts";
+import { inductorDevice } from "./inductor.ts";
+import { mutualDevice } from "./mutual.ts";
+import { resistorDevice } from "./resistor.ts";
+import { sourceDevice } from "./sources.ts";
 
-export interface StampContext {
-  /** Add A[i][j] += v on the real MNA matrix (dense now; sparse in E4). */
-  addMatrix(i: number, j: number, v: number): void;
-  /** Add to the right-hand-side vector. */
-  addRhs(i: number, v: number): void;
-  /** Node indices (unknown vector offsets) of this device. */
-  nodes: readonly number[];
-  /** Branch-unknown offsets allocated to this device, if any. */
-  branches: readonly number[];
-  h: number; // timestep (transient)
-  method: IntegrationMethod;
+export type {
+  Device,
+  DeviceEnv,
+  IntegrationMethod,
+  LteUnit,
+  MatrixStamp,
+} from "./base.ts";
+
+/** Build the device list from compiled elements, in element order. */
+export function buildDevices(compiled: CompiledCircuit): Device[] {
+  const devices: Device[] = [];
+  for (const ce of compiled.elements) {
+    const device = buildOne(ce, compiled);
+    if (device !== undefined) {
+      devices.push(device);
+    }
+  }
+  return devices;
 }
 
-export interface StateContext {
-  time: number;
-  getState(index: number): number;
-  setState(index: number, value: number): void;
+function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | undefined {
+  switch (ce.type) {
+    case "R":
+      return resistorDevice(ce, compiled.options);
+    case "C":
+      return capacitorDevice(ce);
+    case "L":
+      return inductorDevice(ce);
+    case "K":
+      return mutualDevice(ce, compiled);
+    case "V":
+    case "I":
+      return sourceDevice(ce, compiled);
+    case "E":
+    case "G":
+    case "F":
+    case "H":
+      return dependentDevice(ce);
+    case "B":
+    case "S":
+      throw new EngineError({
+        code: "E_NOT_IMPLEMENTED",
+        message: `${ce.type} device simulation lands with milestone E2 (SPEC §22)`,
+        location: { elementName: ce.name },
+      });
+    case "D":
+    case "Q":
+    case "M":
+    case "J":
+      throw new EngineError({
+        code: "E_NOT_IMPLEMENTED",
+        message: `${ce.type} device simulation lands with milestone E2 (SPEC §22)`,
+        location: { elementName: ce.name },
+      });
+    case "X":
+      throw new EngineError({
+        code: "E_NOT_IMPLEMENTED",
+        message: "Subcircuit flattening lands with milestone E3 (SPEC §22)",
+        location: { elementName: ce.name },
+      });
+    default:
+      return undefined;
+  }
 }
-
-export interface Device {
-  /** DC + Newton-linearized stamp (linear devices: same stamp every pass). */
-  stampDC(ctx: StampContext): void;
-  /** Companion-model stamp for transient integration. */
-  stampTran?(ctx: StampContext, h: number, method: IntegrationMethod): void;
-  /** Complex AC stamp at angular frequency omega. */
-  stampAC?(ctx: StampContext, omega: number): void;
-  /** Junction limiting (pnjlim/fetlim); returns true if it modified vNew. */
-  limit?(vNew: Float64Array, vOld: Float64Array): boolean;
-  /** Commit charge/flux state after an accepted step. */
-  acceptStep?(ctx: StateContext): void;
-  /** Local truncation error estimate for adaptive stepping. */
-  truncationError?(ctx: StateContext): number;
-}
-
-/** Device library v1 (SPEC §5.7). Implementations land E1–E3. */
-export const DEVICE_LIBRARY_V1 = [
-  "R",
-  "C",
-  "L",
-  "K",
-  "V",
-  "I",
-  "E",
-  "G",
-  "F",
-  "H",
-  "B",
-  "D",
-  "Q",
-  "M",
-  "J",
-  "S",
-  "W",
-  "opamp",
-] as const;
-
-export type DeviceKind = (typeof DEVICE_LIBRARY_V1)[number];

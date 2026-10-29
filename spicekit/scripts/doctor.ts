@@ -15,7 +15,7 @@ async function main(): Promise<number> {
 
   // 1. Bun version pin (SPEC §3.4)
   const bunVersion = Bun.version ?? "unknown";
-  const pin = (await Bun.file(ROOT + ".bun-version").text()).trim();
+  const pin = (await Bun.file(`${ROOT}.bun-version`).text()).trim();
   if (bunVersion !== pin) {
     hardFail = true;
     problems.push(
@@ -26,7 +26,7 @@ async function main(): Promise<number> {
   }
 
   // 2. Lockfile present
-  const lock = Bun.file(ROOT + "bun.lock");
+  const lock = Bun.file(`${ROOT}bun.lock`);
   if (!(await lock.exists())) {
     notes.push(
       "bun.lock missing — run `bun install` (CI requires it: bun install --frozen-lockfile).",

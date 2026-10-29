@@ -1,0 +1,7 @@
+Floating node
+
+V1 in 0 DC 5
+C1 in mid 100n
+C2 mid 0 100n
+.op
+.end
