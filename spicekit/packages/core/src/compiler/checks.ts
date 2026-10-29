@@ -7,6 +7,7 @@
  */
 
 import { type Circuit, EngineError } from "@spicekit/protocol";
+import { builtinModel } from "../models/index.ts";
 import type { CompiledCircuit } from "./types.ts";
 
 class UnionFind {
@@ -189,7 +190,7 @@ export function checkModelRefs(ir: Circuit): void {
       continue;
     }
     const model = ir.models[el.model.toLowerCase()];
-    if (model === undefined) {
+    if (model === undefined && builtinModel(el.model) === undefined) {
       throw new EngineError({
         code: "E_UNKNOWN_MODEL",
         message: `${el.name} references unknown model "${el.model}"`,

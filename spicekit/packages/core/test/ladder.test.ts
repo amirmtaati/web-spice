@@ -20,9 +20,9 @@
  */
 import { describe, expect, test } from "bun:test";
 import { EngineError } from "@spicekit/protocol";
-import { compile } from "../src/compiler/index.ts";
 import { runOp, runOpWarm } from "../src/analyses/op.ts";
 import { Workspace } from "../src/analyses/workspace.ts";
+import { compile } from "../src/compiler/index.ts";
 import { parseNetlist } from "../src/parser/index.ts";
 
 const LATCH = `CMOS latch (bistable ring of two inverters)
@@ -43,15 +43,23 @@ S1 n1 0 n1 0 sw
 .model sw sw(vt=2.4 ron=1 roff=1e9)
 .end`;
 
-function opMethodAndNodes(
-  netlist: string,
-): { method: string; n1: number; n2: number; iterations: number } {
+function opMethodAndNodes(netlist: string): {
+  method: string;
+  n1: number;
+  n2: number;
+  iterations: number;
+} {
   const compiled = compile(parseNetlist(netlist));
   const ws = new Workspace(compiled);
   const out = runOp(ws, compiled.options, 0);
   const i1 = ws.nodeIndexOf("n1");
   const i2 = ws.nodeIndexOf("n2");
-  return { method: out.method, n1: ws.x[i1] as number, n2: ws.x[i2] as number, iterations: out.iterations };
+  return {
+    method: out.method,
+    n1: ws.x[i1] as number,
+    n2: ws.x[i2] as number,
+    iterations: out.iterations,
+  };
 }
 
 describe("ladder routing (ngspice-compatible knobs)", () => {
@@ -75,9 +83,7 @@ describe("ladder routing (ngspice-compatible knobs)", () => {
 
   test("gminsteps=0 routes to the source rung", () => {
     const direct = opMethodAndNodes(LATCH);
-    const r = opMethodAndNodes(
-      LATCH.replace(".end", ".options noopiter=1 gminsteps=0\n.end"),
-    );
+    const r = opMethodAndNodes(LATCH.replace(".end", ".options noopiter=1 gminsteps=0\n.end"));
     expect(r.method).toBe("source");
     expect(r.n1).toBeCloseTo(direct.n1, 6);
     expect(r.n2).toBeCloseTo(direct.n2, 6);
@@ -155,7 +161,9 @@ describe("ladder exhaustion on a circuit with no DC solution", () => {
       parseNetlist(ASTABLE.replace(".end", ".options gminsteps=3 srcsteps=4\n.end")),
     );
     const ws = new Workspace(compiled);
-    expect(() => runOp(ws, compiled.options, 0)).toThrow(/gmin stepping \(3 steps\).*source stepping \(4 steps\)/s);
+    expect(() => runOp(ws, compiled.options, 0)).toThrow(
+      /gmin stepping \(3 steps\).*source stepping \(4 steps\)/s,
+    );
   });
 
   test("the astable is hard for the direct rung specifically (state flip-flop)", () => {

@@ -34,6 +34,19 @@ export {
   TAU,
   vThermal,
 } from "./math/index.ts";
+export {
+  BUILTIN_MODEL_CARDS,
+  builtinModel,
+  builtinModelNames,
+  canonicalModelType,
+  knownModelParams,
+  MODEL_TYPES_BY_ELEMENT,
+  type ModelParamSpec,
+  modelSpecsFor,
+  modelTypeMismatch,
+  specDefault,
+  unknownModelParams,
+} from "./models/index.ts";
 export type { ParseDiagnostics, ParseResult } from "./parser/index.ts";
 export {
   formatExact,
