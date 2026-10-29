@@ -125,37 +125,54 @@ export function checkGroundAndFloating(compiled: CompiledCircuit): void {
 
 /**
  * Voltage sources in parallel (directly or via other V/E/H sources) create a
- * loop MNA cannot solve. Union-find over nodes bridged by V/E/H: any
- * component containing two or more source branches is a loop.
+ * loop MNA cannot solve. Union-find over nodes bridged by V/E/H: a component
+ * with N nodes and M source branches contains a loop iff M ≥ N (a connected
+ * graph needs M ≥ N for a cycle). Series chains (M = N − 1) are legal.
  */
 export function checkSourceLoops(compiled: CompiledCircuit): void {
   const SOURCES = new Set(["V", "E", "H"]);
-  const uf = new UnionFind(Math.max(1, compiled.nodeCount));
-  const sourceRoots = new Map<number, string>();
-  for (const el of compiled.elements) {
-    if (!SOURCES.has(el.type)) {
-      continue;
-    }
-    const [a, b] = [el.nodes[0] as number, el.nodes[1] as number];
-    if (a >= 0 && b >= 0) {
-      uf.union(a, b);
-    }
-  }
+  const GROUND = compiled.nodeCount; // virtual id for the ground reference
+  const uf = new UnionFind(compiled.nodeCount + 1);
+  const seenNodes = new Set<number>();
+  const sourceOwners: { a: number; b: number; name: string }[] = [];
   for (const el of compiled.elements) {
     if (!SOURCES.has(el.type)) {
       continue;
     }
     const a = el.nodes[0] as number;
-    const root = a >= 0 ? uf.find(a) : -1;
-    const existing = sourceRoots.get(root);
-    if (existing !== undefined) {
+    const b = el.nodes[1] as number;
+    if (a >= 0 || b >= 0) {
+      const ea = a >= 0 ? a : GROUND;
+      const eb = b >= 0 ? b : GROUND;
+      uf.union(ea, eb);
+      seenNodes.add(ea);
+      seenNodes.add(eb);
+      sourceOwners.push({ a: ea, b: eb, name: el.name });
+    }
+  }
+  // Count nodes and source edges per component; loop iff edges ≥ nodes.
+  const nodesPer = new Map<number, number>();
+  for (const n of seenNodes) {
+    const root = uf.find(n);
+    nodesPer.set(root, (nodesPer.get(root) ?? 0) + 1);
+  }
+  const edgesPer = new Map<number, { count: number; first: string; second: string }>();
+  for (const src of sourceOwners) {
+    const root = uf.find(src.a);
+    const entry = edgesPer.get(root) ?? { count: 0, first: src.name, second: src.name };
+    entry.count += 1;
+    entry.second = src.name;
+    edgesPer.set(root, entry);
+  }
+  for (const [root, edges] of edgesPer) {
+    const nodes = nodesPer.get(root) ?? 0;
+    if (edges.count >= nodes) {
       throw new EngineError({
         code: "E_VSOURCE_LOOP",
-        message: `Voltage-source loop: ${existing} and ${el.name} are connected through voltage sources only`,
-        location: { elementName: el.name },
+        message: `Voltage-source loop: ${edges.first} and ${edges.second} are connected through voltage sources only`,
+        location: { elementName: edges.second },
       });
     }
-    sourceRoots.set(root, el.name);
   }
 }
 

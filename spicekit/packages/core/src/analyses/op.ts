@@ -58,26 +58,6 @@ export function stampAndSolve(
   ws.solve();
 }
 
-/**
- * Junction limiting pass after a solve: devices may clamp node potentials in
- * ws.x (SPICE2 semantics). Returns true when anything was clamped — the
- * iterate was moved, so convergence cannot be trusted this pass.
- */
-function limitPass(ws: Workspace, time: number): boolean {
-  let limited = false;
-  for (let i = 0; i < ws.devices.length; i++) {
-    const d = ws.devices[i] as Device;
-    if (d.limit === undefined) {
-      continue;
-    }
-    ws.prepareEnv(i, time);
-    if (d.limit(ws.envRef())) {
-      limited = true;
-    }
-  }
-  return limited;
-}
-
 /** SPICE convergence: per-unknown |Δ| ≤ reltol·max(|a|,|b|) + vntol/abstol. */
 function isConverged(
   a: Float64Array,
@@ -99,7 +79,27 @@ function isConverged(
 }
 
 /**
- * Newton loop from the current x as the initial guess: stamp+solve, limit,
+ * One Newton iteration: limit → stamp → solve. Returns false when a device
+ * clamped a junction (the iterate cannot be trusted as converged).
+ */
+function limitThenStamp(ws: Workspace, time: number): boolean {
+  let limited = false;
+  for (let i = 0; i < ws.devices.length; i++) {
+    const d = ws.devices[i] as Device;
+    if (d.limit === undefined) {
+      continue;
+    }
+    ws.prepareEnv(i, time);
+    if (d.limit(ws.envRef())) {
+      limited = true;
+    }
+  }
+  stampAndSolve(ws, time, false, 0, "be");
+  return limited;
+}
+
+/**
+ * Newton loop from the current x as the initial guess: limit, stamp+solve,
  * repeat until successive iterates agree and nothing was limited. Returns
  * the iteration count and whether it converged within itl1.
  */
@@ -112,9 +112,8 @@ function solveNewton(
   xPrev.set(ws.x);
   let iterations = 0;
   for (let iter = 0; iter < options.itl1; iter++) {
-    stampAndSolve(ws, time, false, 0, "be");
+    const limited = limitThenStamp(ws, time);
     iterations += 1;
-    const limited = limitPass(ws, time);
     if (!limited && isConverged(xPrev, ws.x, ws.nodeCount, options)) {
       return { iterations, converged: true };
     }
@@ -162,12 +161,13 @@ function attemptDirect(
   options: SimOptions,
   time: number,
   xPrev: Float64Array,
-): boolean {
+): { ok: boolean; iterations: number } {
   try {
-    return solveNewton(ws, options, time, xPrev).converged;
+    const r = solveNewton(ws, options, time, xPrev);
+    return { ok: r.converged, iterations: r.iterations };
   } catch (error) {
     if (isSingular(error)) {
-      return false;
+      return { ok: false, iterations: 0 };
     }
     throw error;
   }
@@ -203,7 +203,7 @@ function gminStepping(
   // reported operating point must satisfy the unmodified circuit.
   ws.nodeGmin = 0;
   ws.x.fill(0);
-  return attemptDirect(ws, options, time, xPrev);
+  return attemptDirect(ws, options, time, xPrev).ok;
 }
 
 /** ngspice spice3_src: scale independent sources 0 → 1, warm start each. */
@@ -244,8 +244,9 @@ export function runOp(ws: Workspace, options: SimOptions, time = 0): OpOutcome {
   const xPrev = new Float64Array(ws.size);
   ws.nodeGmin = 0;
   ws.x.fill(0);
-  if (attemptDirect(ws, options, time, xPrev)) {
-    return { iterations: 0, converged: true, method: "direct" };
+  const direct = attemptDirect(ws, options, time, xPrev);
+  if (direct.ok) {
+    return { iterations: direct.iterations, converged: true, method: "direct" };
   }
   // Rung 2: gmin stepping (floating nodes, metastable latches).
   if (gminStepping(ws, options, time, xPrev)) {

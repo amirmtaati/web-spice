@@ -7,6 +7,7 @@
 import { EngineError } from "@spicekit/protocol";
 import type { CompiledCircuit, CompiledElement } from "../compiler/index.ts";
 import type { Device } from "./base.ts";
+import { bjtDevice } from "./bjt.ts";
 import { capacitorDevice } from "./capacitor.ts";
 import { dependentDevice } from "./dependent.ts";
 import { diodeDevice } from "./diode.ts";
@@ -62,6 +63,7 @@ function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | unde
     case "D":
       return diodeDevice(ce, compiled.options);
     case "Q":
+      return bjtDevice(ce, compiled.options);
     case "M":
     case "J":
     case "S":

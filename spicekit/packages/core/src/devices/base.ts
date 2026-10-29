@@ -47,12 +47,12 @@ export interface Device {
   /** Companion-model stamp for a transient step of size h. */
   stampTran?(m: MatrixStamp, env: DeviceEnv, h: number, method: IntegrationMethod): void;
   /**
-   * Junction limiting between Newton iterations (SPEC §5.3). Called after a
-   * solve with env.x holding the fresh iterate; the device compares each
-   * junction voltage against the value it stamped with (its state) and may
-   * clamp node potentials in env.x (SPICE2/3 semantics). Returns true when
-   * anything was clamped — the analysis then distrusts convergence for this
-   * iteration and keeps iterating.
+   * Junction limiting before the stamp (SPEC §5.3, ngspice semantics): read
+   * the junction voltages from the current iterate (env.x), clamp them
+   * against the previous stamp with pnjlim/fetlim, store the clamped values
+   * in device state, and return true when anything was clamped — the
+   * analysis then distrusts convergence for this iteration. The subsequent
+   * stamp evaluates the nonlinearities AT the stored (limited) values.
    */
   limit?(env: DeviceEnv): boolean;
   /** Commit device state after an accepted step (reads fresh env.x). */
@@ -79,36 +79,10 @@ export function branchVoltage(env: DeviceEnv, plusIdx: number, minusIdx: number)
   return vp - vn;
 }
 
-/** Node potential with ground = 0 (limiting write-backs, device outputs). */
+/** Node potential with ground = 0 (limiting reconstruction, outputs). */
 export function nodePotential(env: DeviceEnv, nodeIdx: number): number {
   const k = env.nodes[nodeIdx] as number;
   return k === -1 ? 0 : (env.x[k] as number);
-}
-
-/**
- * Write a clamped junction voltage back into the solution vector (SPICE2
- * node-poking): move the potential of `plusIdx` so that v(plus) − v(minus)
- * equals `v`, leaving the minus node untouched. Grounded nodes are skipped.
- */
-export function pokeJunctionVoltage(
-  env: DeviceEnv,
-  plusIdx: number,
-  minusIdx: number,
-  v: number,
-): void {
-  const p = env.nodes[plusIdx] as number;
-  const n = env.nodes[minusIdx] as number;
-  if (n === -1) {
-    if (p >= 0) {
-      env.x[p] = v;
-    }
-    return;
-  }
-  if (p === -1) {
-    env.x[n] = -v;
-    return;
-  }
-  env.x[p] = (env.x[n] as number) + v;
 }
 
 /** Add a symmetric 2×2 conductance block between two node offsets. */

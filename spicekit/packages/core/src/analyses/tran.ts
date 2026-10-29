@@ -214,7 +214,7 @@ function record(
 
 /**
  * One transient step = a full Newton loop (nonlinear devices iterate):
- * stamp companion + nonlinear models, solve, limit, repeat until successive
+ * limit, stamp companion + nonlinear models, solve, repeat until successive
  * iterates agree within reltol/vntol/abstol and nothing was limited.
  * Iteration cap is itl4 (SPICE transient iteration limit, default 10).
  */
@@ -228,8 +228,8 @@ function newtonStep(
   const xPrev = new Float64Array(ws.size);
   xPrev.set(ws.x);
   for (let iter = 0; iter < options.itl4; iter++) {
-    stampAndSolve(ws, time, true, h, method);
-    // Junction limiting between transient iterations (same as OP).
+    // Limit BEFORE the stamp (ngspice semantics): clamp junction states,
+    // then evaluate the nonlinearities at the clamped values.
     let limited = false;
     for (let i = 0; i < ws.devices.length; i++) {
       const d = ws.devices[i] as Device;
@@ -241,6 +241,7 @@ function newtonStep(
         limited = true;
       }
     }
+    stampAndSolve(ws, time, true, h, method);
     let converged = !limited;
     if (converged) {
       for (let i = 0; i < xPrev.length; i++) {
