@@ -22,7 +22,9 @@ import {
   parseM,
   parseQ,
   parseR,
+  parseS,
   parseVI,
+  parseW,
 } from "./cards.ts";
 import { handleDirective, newAccumulator, target } from "./directives.ts";
 import { directiveName, type LexCard, lexNetlist, NetlistSyntaxError } from "./lexer.ts";
@@ -42,10 +44,12 @@ const CARD_PARSERS: Readonly<Record<string, ElementParser>> = {
   q: parseQ,
   m: parseM,
   j: parseJ,
+  s: parseS,
+  w: parseW,
 };
 
-/** Element types with card syntax but no simulator implementation until E2+. */
-export const PARSED_NOT_SIMULATED: ReadonlySet<string> = new Set(["d", "q", "m", "j"]);
+/** Element types parsed into the IR but not yet simulated (B → E3). */
+export const PARSED_NOT_SIMULATED: ReadonlySet<string> = new Set(["b"]);
 
 /** Return the netlist text for an .include path (host-provided). */
 export type IncludeResolver = (path: string) => string;

@@ -9,7 +9,7 @@ export interface CompiledElement {
   element: Element;
   type: Element["type"];
   name: string;
-  /** MNA offsets; ground is -1. */
+  /** MNA offsets; ground is -1. For S: [n+, n-, nc+, nc-]. */
   nodes: number[];
   /** Resolved numeric payload (R/C/L value, K coupling, E/F/H gain, G gm). */
   value?: number;
@@ -18,11 +18,20 @@ export interface CompiledElement {
   tc1?: number;
   tc2?: number;
   area?: number;
+  /** MOSFET geometry (meters; SPICE default 100 µm each). */
+  w?: number;
+  l?: number;
   /** Own branch-current unknown (V/L/E/H), as an absolute MNA offset. */
   branch?: number;
-  /** F/H: branch offset of the controlling V source. */
+  /** F/H/W: branch offset of the controlling V source. */
   controlBranch?: number;
   controlName?: string;
+  /** Model-backed devices: lowercased model card type (diode/npn/nmos/...). */
+  modelType?: string;
+  /** Model card parameters resolved to numbers (expressions evaluated). */
+  modelParams?: Record<string, number>;
+  /** S/W initial state from the ON/OFF card suffix. */
+  on?: boolean;
 }
 
 export interface CompileWarning {

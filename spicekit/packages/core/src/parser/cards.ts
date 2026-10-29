@@ -23,6 +23,8 @@ type DEl = Extract<Element, { type: "D" }>;
 type QEl = Extract<Element, { type: "Q" }>;
 type MEl = Extract<Element, { type: "M" }>;
 type JEl = Extract<Element, { type: "J" }>;
+type SEl = Extract<Element, { type: "S" }>;
+type WEl = Extract<Element, { type: "W" }>;
 
 const FAIL = NetlistSyntaxError;
 
@@ -352,3 +354,46 @@ export const parseJ: ElementParser = (tokens) => {
   }
   return el;
 };
+
+/** Sxxx n+ n- nc+ nc- mname [ON|OFF] — voltage-controlled switch. */
+export const parseS: ElementParser = (tokens) => {
+  const n = nodes(tokens, 1, 4);
+  const model = tok(tokens, 5).text;
+  const el: SEl = {
+    type: "S",
+    name: tok(tokens, 0).text,
+    n: [n[0] as string, n[1] as string],
+    ctrl: [n[2] as string, n[3] as string],
+    model,
+  };
+  applyOnOff(tokens, 6, el);
+  return el;
+};
+
+/** Wxxx n+ n- vsource mname [ON|OFF] — current-controlled switch. */
+export const parseW: ElementParser = (tokens) => {
+  const n = nodes(tokens, 1, 2);
+  const control = tok(tokens, 3).text;
+  const model = tok(tokens, 4).text;
+  const el: WEl = {
+    type: "W",
+    name: tok(tokens, 0).text,
+    n: [n[0] as string, n[1] as string],
+    control,
+    model,
+  };
+  applyOnOff(tokens, 5, el);
+  return el;
+};
+
+/** Apply the optional ON/OFF state suffix (SPICE3 switch cards). */
+function applyOnOff(tokens: CardToken[], at: number, el: SEl | WEl): void {
+  if (tokens.length > at) {
+    const word = tok(tokens, at).text.toUpperCase();
+    if (word === "ON") {
+      el.on = true;
+    } else if (word === "OFF") {
+      el.on = false;
+    }
+  }
+}

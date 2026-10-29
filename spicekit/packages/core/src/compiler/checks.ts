@@ -39,11 +39,26 @@ class UnionFind {
 }
 
 /**
- * DC-conducting element types: these join their nodes into one DC component.
- * C is excluded (open at DC) and I/G excluded (open circuit) — a node group
- * separated from ground by only those is floating and would make MNA singular.
+ * DC-conduction node roles per element type: which of the element's compiled
+ * nodes join their group into one DC component for the floating check.
+ * C is open at DC; I/G/B are open circuits; the MOS gate is insulated (its
+ * DC path runs through the bulk junctions d-s-b only). Nonlinear junction
+ * devices conduct (leakage) at DC, so a node held only through them still
+ * has a DC path — matching what the MNA matrix can actually solve.
  */
-const CONDUCTS_DC: ReadonlySet<string> = new Set(["R", "L", "V", "E", "H"]);
+const DC_CONDUCTION_NODES: Readonly<Record<string, readonly number[]>> = {
+  R: [0, 1],
+  L: [0, 1],
+  V: [0, 1],
+  E: [0, 1],
+  H: [0, 1],
+  D: [0, 1],
+  Q: [0, 1, 2], // b-e, b-c junctions conduct
+  M: [0, 2, 3], // d, s, b (bulk diodes); gate excluded (insulated)
+  J: [0, 1, 2], // gate junctions conduct
+  S: [0, 1, 2, 3],
+  W: [0, 1],
+};
 
 export function checkGroundAndFloating(compiled: CompiledCircuit): void {
   if (compiled.nodeCount === 0) {
@@ -68,27 +83,29 @@ export function checkGroundAndFloating(compiled: CompiledCircuit): void {
 
   const uf = new UnionFind(compiled.nodeCount);
   for (const el of compiled.elements) {
-    if (!CONDUCTS_DC.has(el.type)) {
+    const roles = DC_CONDUCTION_NODES[el.type];
+    if (roles === undefined) {
       continue;
     }
-    const nodes = el.nodes.filter((n) => n >= 0);
+    const nodes = roles.map((i) => el.nodes[i]).filter((n) => n !== undefined && n >= 0);
     for (let i = 1; i < nodes.length; i++) {
       uf.union(nodes[0] as number, nodes[i] as number);
     }
   }
   // A component is grounded iff some DC-conducting element joins one of its
-  // nodes to ground. R/L/V/E/H stamps union their two nodes above; elements
-  // touching -1 ground the whole component of their other node.
+  // nodes to ground. Elements touching -1 ground the whole component of their
+  // other DC-conducting node.
   const groundedRoots = new Set<number>();
   for (const el of compiled.elements) {
-    if (!CONDUCTS_DC.has(el.type)) {
+    const roles = DC_CONDUCTION_NODES[el.type];
+    if (roles === undefined) {
       continue;
     }
-    const grounded = el.nodes.some((n) => n === -1);
+    const grounded = roles.some((i) => el.nodes[i] === -1);
     if (!grounded) {
       continue;
     }
-    const other = el.nodes.find((n) => n >= 0);
+    const other = roles.map((i) => el.nodes[i]).find((n) => n !== undefined && n >= 0);
     if (other !== undefined) {
       groundedRoots.add(uf.find(other));
     }
@@ -143,11 +160,15 @@ export function checkSourceLoops(compiled: CompiledCircuit): void {
 }
 
 export function checkModelRefs(ir: Circuit): void {
-  // Model-backed devices compile without a model until E2; simulate-time use
-  // of D/Q/M/J is rejected in the device factory, so here we only validate
-  // that referenced model names resolve when the circuit declares them.
   for (const el of ir.elements) {
-    if (el.type !== "D" && el.type !== "Q" && el.type !== "M" && el.type !== "J") {
+    if (
+      el.type !== "D" &&
+      el.type !== "Q" &&
+      el.type !== "M" &&
+      el.type !== "J" &&
+      el.type !== "S" &&
+      el.type !== "W"
+    ) {
       continue;
     }
     const model = ir.models[el.model.toLowerCase()];
@@ -161,10 +182,10 @@ export function checkModelRefs(ir: Circuit): void {
   }
 }
 
-/** F/H need an existing controlling V source (branch unknown owner). */
+/** F/H/W need an existing controlling V source (branch unknown owner). */
 export function checkControls(compiled: CompiledCircuit): void {
   for (const el of compiled.elements) {
-    if (el.type !== "F" && el.type !== "H") {
+    if (el.type !== "F" && el.type !== "H" && el.type !== "W") {
       continue;
     }
     const control = el.controlName ?? "";
@@ -172,7 +193,7 @@ export function checkControls(compiled: CompiledCircuit): void {
     if (branch === undefined) {
       throw new EngineError({
         code: "E_PARSE",
-        message: `${el.name} controls on "${control}", which is not a voltage source (F/H require a V element)`,
+        message: `${el.name} controls on "${control}", which is not a voltage source (F/H/W require a V element)`,
         location: { elementName: el.name },
       });
     }

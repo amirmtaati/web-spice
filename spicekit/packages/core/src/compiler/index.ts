@@ -145,20 +145,50 @@ export function compile(ir: Circuit): CompiledCircuit {
         if (el.area !== undefined) {
           ce.area = el.area;
         }
-        ce.value = 1; // placeholder; device models land in E2
+        resolveModel(ce, ir, scope, warnings);
         break;
       }
       case "M": {
         ce.nodes = el.n.map((n) => nodeOf(n));
-        ce.value = 1; // placeholder; device models land in E2
+        resolveModel(ce, ir, scope, warnings);
+        if (el.w !== undefined) {
+          ce.w = resolveExpr(el.w, scope);
+        }
+        if (el.l !== undefined) {
+          ce.l = resolveExpr(el.l, scope);
+        }
+        break;
+      }
+      case "S": {
+        // Sxxx n+ n- nc+ nc- mname [ON|OFF]: element terminals first, then
+        // the control terminals (the switch device reads positions 0..3).
+        ce.nodes = [
+          nodeOf(nd(el.n, 0)),
+          nodeOf(nd(el.n, 1)),
+          nodeOf(el.ctrl[0]),
+          nodeOf(el.ctrl[1]),
+        ];
+        if (el.on !== undefined) {
+          ce.on = el.on;
+        }
+        resolveModel(ce, ir, scope, warnings);
+        break;
+      }
+      case "W": {
+        // Wxxx n+ n- vsource mname [ON|OFF]
+        ce.nodes = [nodeOf(nd(el.n, 0)), nodeOf(nd(el.n, 1))];
+        ce.controlName = el.control;
+        if (el.on !== undefined) {
+          ce.on = el.on;
+        }
+        resolveModel(ce, ir, scope, warnings);
         break;
       }
       case "B":
-      case "S":
       case "X": {
         throw new EngineError({
           code: "E_NOT_IMPLEMENTED",
-          message: `${el.type} elements are supported from milestone ${el.type === "X" ? "E3" : "E2"} onward`,
+          message: `${el.type} elements are supported from milestone E3 onward (SPEC §22)`,
           location: { elementName: el.name },
         });
       }
@@ -204,6 +234,43 @@ export function compile(ir: Circuit): CompiledCircuit {
 
 function branchCount0(owners: string[]): number {
   return owners.length;
+}
+
+/**
+ * Resolve the `.model` card for a model-backed element (D/Q/M/J/S/W) into
+ * numeric parameters (SPEC §5.2 "resolved model parameters"). String param
+ * values are expressions evaluated against the parameter scope. The model
+ * reference itself is validated by checkModelRefs.
+ */
+function resolveModel(
+  ce: CompiledElement,
+  ir: Circuit,
+  scope: ParamScope,
+  warnings: CompileWarning[],
+): void {
+  const el = ce.element as Extract<Element, { model: string }>;
+  const model = ir.models[el.model.toLowerCase()];
+  if (model === undefined) {
+    return; // checkModelRefs already reported E_UNKNOWN_MODEL
+  }
+  ce.modelType = model.type;
+  const params: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(model.parameters)) {
+    if (typeof raw === "number") {
+      params[key.toLowerCase()] = raw;
+    } else {
+      try {
+        params[key.toLowerCase()] = resolveExpr(raw, scope);
+      } catch {
+        warnings.push({
+          code: "W_MODEL_PARAM",
+          message: `${ce.name}: cannot evaluate model parameter ${key}="${raw}"; ignored`,
+          elementName: ce.name,
+        });
+      }
+    }
+  }
+  ce.modelParams = params;
 }
 
 function defaultDc(el: Extract<Element, { type: "V" | "I" }>, warnings: CompileWarning[]): number {

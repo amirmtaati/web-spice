@@ -67,8 +67,20 @@ export type Element =
       type: "S";
       name: string;
       n: [NodeId, NodeId];
-      ctrl: [NodeId, NodeId] | { element: string };
+      /** Voltage-controlled: control terminals (nc+, nc-). */
+      ctrl: [NodeId, NodeId];
       model: string;
+      /** Initial state from the ON/OFF card suffix. */
+      on?: boolean;
+    }
+  | {
+      type: "W";
+      name: string;
+      n: [NodeId, NodeId];
+      /** Current-controlled: name of the controlling V source. */
+      control: string;
+      model: string;
+      on?: boolean;
     }
   | { type: "X"; name: string; n: NodeId[]; subckt: string; params?: Record<string, Expr> };
 

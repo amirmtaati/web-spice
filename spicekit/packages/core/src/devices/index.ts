@@ -9,6 +9,7 @@ import type { CompiledCircuit, CompiledElement } from "../compiler/index.ts";
 import type { Device } from "./base.ts";
 import { capacitorDevice } from "./capacitor.ts";
 import { dependentDevice } from "./dependent.ts";
+import { diodeDevice } from "./diode.ts";
 import { inductorDevice } from "./inductor.ts";
 import { mutualDevice } from "./mutual.ts";
 import { resistorDevice } from "./resistor.ts";
@@ -53,16 +54,18 @@ function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | unde
     case "H":
       return dependentDevice(ce);
     case "B":
-    case "S":
       throw new EngineError({
         code: "E_NOT_IMPLEMENTED",
-        message: `${ce.type} device simulation lands with milestone E2 (SPEC §22)`,
+        message: "B device simulation lands with milestone E3 (SPEC §22)",
         location: { elementName: ce.name },
       });
     case "D":
+      return diodeDevice(ce, compiled.options);
     case "Q":
     case "M":
     case "J":
+    case "S":
+    case "W":
       throw new EngineError({
         code: "E_NOT_IMPLEMENTED",
         message: `${ce.type} device simulation lands with milestone E2 (SPEC §22)`,

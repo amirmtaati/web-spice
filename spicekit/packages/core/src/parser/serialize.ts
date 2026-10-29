@@ -83,11 +83,25 @@ function serializeElement(el: Element): string {
       return `${el.name} ${el.n.join(" ")} ${el.model}${wls(el)}`;
     case "J":
       return `${el.name} ${el.n.join(" ")} ${el.model}${areaSuffix(el.area)}`;
-    case "B":
     case "S":
+      return `${el.name} ${el.n[0]} ${el.n[1]} ${el.ctrl[0]} ${el.ctrl[1]} ${el.model}${onOffSuffix(el)}`;
+    case "W":
+      return `${el.name} ${el.n[0]} ${el.n[1]} ${el.control} ${el.model}${onOffSuffix(el)}`;
+    case "B":
     case "X":
-      throw new Error(`serializeElement: ${el.type} serialization lands with E2/E3`);
+      throw new Error(`serializeElement: ${el.type} serialization lands with E3`);
   }
+}
+
+/** ON/OFF suffix for switch cards (round-trips the initial state). */
+function onOffSuffix(el: Extract<Element, { type: "S" | "W" }>): string {
+  if (el.on === true) {
+    return " ON";
+  }
+  if (el.on === false) {
+    return " OFF";
+  }
+  return "";
 }
 
 /** Index-signature fields on E/G/F/H are typed unknown; narrow defensively. */
