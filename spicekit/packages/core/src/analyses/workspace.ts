@@ -81,6 +81,9 @@ export class Workspace implements MatrixStamp {
       stateBase: 0,
       stateBases: this.stateBases,
       time: 0,
+      nodeOffset: (name: string): number => this.nodeIndexOf(name),
+      branchOffset: (name: string): number =>
+        this.compiled.branchByName.get(name.toLowerCase()) ?? -1,
     };
     this.nodeNames = compiled.nodeNames;
     this.branchOwners = compiled.branchOwners;

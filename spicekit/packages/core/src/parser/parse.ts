@@ -10,6 +10,7 @@ import { EngineError } from "@spicekit/protocol";
 
 import {
   type ElementParser,
+  parseB,
   parseC,
   parseD,
   parseE,
@@ -40,6 +41,7 @@ const CARD_PARSERS: Readonly<Record<string, ElementParser>> = {
   g: parseG,
   f: parseF,
   h: parseH,
+  b: parseB,
   d: parseD,
   q: parseQ,
   m: parseM,
@@ -48,8 +50,8 @@ const CARD_PARSERS: Readonly<Record<string, ElementParser>> = {
   w: parseW,
 };
 
-/** Element types parsed into the IR but not yet simulated (B → E3). */
-export const PARSED_NOT_SIMULATED: ReadonlySet<string> = new Set(["b"]);
+/** Element types parsed into the IR but not yet simulated (X → E3 subckts). */
+export const PARSED_NOT_SIMULATED: ReadonlySet<string> = new Set(["x"]);
 
 /** Return the netlist text for an .include path (host-provided). */
 export type IncludeResolver = (path: string) => string;
@@ -107,10 +109,10 @@ function appendElement(card: LexCard, acc: ReturnType<typeof newAccumulator>): v
   const kind = head.text.charAt(0).toLowerCase();
   const parser = CARD_PARSERS[kind];
   if (parser === undefined) {
-    const future = kind === "b" || kind === "s" || kind === "w" || kind === "x";
+    const future = kind === "x";
     throw new NetlistSyntaxError(
       future
-        ? `Element type "${kind.toUpperCase()}" is parsed from milestone E2/E3 onward`
+        ? `Element type "${kind.toUpperCase()}" is parsed from milestone E3 onward`
         : `Unknown element type "${head.text}"`,
       head.line,
       head.col,

@@ -204,17 +204,29 @@ describe("compiler — pre-flight checks", () => {
     ).toThrow(/inductance/);
   });
 
-  test("deferred element types (B/X) are explicit E_NOT_IMPLEMENTED; S needs a model", () => {
-    for (const el of [
-      { type: "B", name: "B1", n: ["a", "0"], kind: "V", expr: "1" },
-      { type: "X", name: "X1", n: ["a", "0"], subckt: "sub" },
-    ] as Element[]) {
-      try {
-        compile(ir([r("R1", "a", "0", 1000), el]));
-        throw new Error(`should have thrown for ${el.type}`);
-      } catch (e) {
-        expect((e as { code: string }).code).toBe("E_NOT_IMPLEMENTED");
-      }
+  test("B compiles from E3; X stays explicit E_NOT_IMPLEMENTED; S needs a model", () => {
+    // B (behavioral source) is implemented from E3: it compiles, and the
+    // expression itself is validated by the device's dual compiler.
+    const bCompiled = compile(
+      ir([
+        r("R1", "a", "0", 1000),
+        { type: "B", name: "B1", n: ["a", "0"], kind: "V", expr: "1" } as Element,
+      ]),
+    );
+    const bEl = bCompiled.elements.find((e) => e.name === "B1");
+    expect(bEl?.kind).toBe("V");
+    expect(bEl?.expr).toBe("1");
+    expect(bEl?.branch).toBeDefined(); // V-kind owns a branch unknown
+    try {
+      compile(
+        ir([
+          r("R1", "a", "0", 1000),
+          { type: "X", name: "X1", n: ["a", "0"], subckt: "sub" } as Element,
+        ]),
+      );
+      throw new Error("should have thrown for X");
+    } catch (e) {
+      expect((e as { code: string }).code).toBe("E_NOT_IMPLEMENTED");
     }
     // S is simulated from E2 — a missing model card is the error now.
     try {

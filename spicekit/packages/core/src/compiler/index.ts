@@ -208,11 +208,26 @@ export function compile(ir: Circuit): CompiledCircuit {
         resolveModel(ce, ir, scope, warnings);
         break;
       }
-      case "B":
+      case "B": {
+        // Behavioral source: nodes + expression payload; a V-kind B owns a
+        // branch unknown (v_p − v_n = f) exactly like E/H (I-kind is matrix
+        // and rhs only, like G). Expression validity is checked by the
+        // device's dual compiler (operator names resolve against the full
+        // node/branch tables there).
+        ce.nodes = [nodeOf(nd(el.n, 0)), nodeOf(nd(el.n, 1))];
+        ce.kind = el.kind;
+        ce.expr = el.expr;
+        if (el.kind === "V") {
+          ce.branch = branchCount0(branchOwners);
+          branchByName.set(el.name.toLowerCase(), ce.branch);
+          branchOwners.push(el.name);
+        }
+        break;
+      }
       case "X": {
         throw new EngineError({
           code: "E_NOT_IMPLEMENTED",
-          message: `${el.type} elements are supported from milestone E3 onward (SPEC §22)`,
+          message: "Subcircuit flattening lands with milestone E3 (SPEC §22)",
           location: { elementName: el.name },
         });
       }
@@ -386,6 +401,7 @@ const IMPLEMENTED_TYPES = new Set([
   "G",
   "F",
   "H",
+  "B",
   "D",
   "Q",
   "M",

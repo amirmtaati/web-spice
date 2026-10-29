@@ -88,8 +88,9 @@ function serializeElement(el: Element): string {
     case "W":
       return `${el.name} ${el.n[0]} ${el.n[1]} ${el.control} ${el.model}${onOffSuffix(el)}`;
     case "B":
+      return `${el.name} ${el.n[0]} ${el.n[1]} ${el.kind} = ${el.expr}`;
     case "X":
-      throw new Error(`serializeElement: ${el.type} serialization lands with E3`);
+      return `${el.name} ${el.n.join(" ")} ${el.subckt}`;
   }
 }
 

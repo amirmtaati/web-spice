@@ -8,6 +8,7 @@ import { EngineError } from "@spicekit/protocol";
 import type { CompiledCircuit, CompiledElement } from "../compiler/index.ts";
 import type { Device } from "./base.ts";
 import { bjtDevice } from "./bjt.ts";
+import { bSourceDevice } from "./bsource.ts";
 import { capacitorDevice } from "./capacitor.ts";
 import { dependentDevice } from "./dependent.ts";
 import { diodeDevice } from "./diode.ts";
@@ -59,11 +60,7 @@ function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | unde
     case "H":
       return dependentDevice(ce);
     case "B":
-      throw new EngineError({
-        code: "E_NOT_IMPLEMENTED",
-        message: "B device simulation lands with milestone E3 (SPEC §22)",
-        location: { elementName: ce.name },
-      });
+      return bSourceDevice(ce, compiled);
     case "D":
       return diodeDevice(ce, compiled.options);
     case "Q":

@@ -386,6 +386,48 @@ export const parseW: ElementParser = (tokens) => {
   return el;
 };
 
+/** Bxxx n+ n- V|I = expression — behavioral source (E3). */
+export const parseB: ElementParser = (tokens) => {
+  const n = nodes(tokens, 1, 2);
+  // Three accepted spellings: `V = expr`, `V expr`, `V=expr` (the lexer may
+  // glue the '=' and the start of the expression onto the kind token).
+  const kindRaw = tok(tokens, 3).text;
+  const eq = kindRaw.indexOf("=");
+  const kindTok = (eq === -1 ? kindRaw : kindRaw.slice(0, eq)).toLowerCase();
+  if (kindTok !== "v" && kindTok !== "i") {
+    throw new FAIL(
+      `B source expects "V = expr" or "I = expr", got "${kindRaw}"`,
+      tok(tokens, 3).line,
+      tok(tokens, 3).col,
+    );
+  }
+  // Tokens are rejoined with spaces; the expression grammar treats
+  // whitespace as argument separation (see eval/parser.ts).
+  const parts: string[] = [];
+  if (eq >= 0 && kindRaw.length > eq + 1) {
+    parts.push(kindRaw.slice(eq + 1));
+  }
+  let i = eq >= 0 ? 4 : 4;
+  if (eq === -1 && tok(tokens, 4).text === "=") {
+    i = 5;
+  }
+  for (; i < tokens.length; i++) {
+    parts.push(tok(tokens, i).text);
+  }
+  if (parts.length === 0) {
+    const last = tok(tokens, 4);
+    throw new FAIL(`B source is missing its expression`, last.line, last.col);
+  }
+  const kind = kindTok === "v" ? "V" : "I";
+  return {
+    type: "B",
+    name: tok(tokens, 0).text,
+    n: [n[0] as string, n[1] as string],
+    kind,
+    expr: parts.join(" "),
+  };
+};
+
 /** Apply the optional ON/OFF state suffix (SPICE3 switch cards). */
 function applyOnOff(tokens: CardToken[], at: number, el: SEl | WEl): void {
   if (tokens.length > at) {

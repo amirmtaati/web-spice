@@ -1,13 +1,19 @@
 /**
  * Expression evaluator public API (SPEC §5.6). Used by `.param`, `{}` element
- * values, and (from E3) behavioral sources and the `evaluate` message.
- * Expressions compile to closures — never `eval`/`new Function`.
+ * values, behavioral sources (B), and the `evaluate` message. Expressions
+ * compile to closures — never `eval`/`new Function`.
  */
 
 export type { EvalContext } from "./context.ts";
+export type {
+  CompiledDualExpression,
+  Dual,
+  DualEvalContext,
+  DualOperand,
+} from "./dual.ts";
 export type { EvalFn } from "./functions.ts";
 export { ParamScope } from "./params.ts";
-export { compileExpression } from "./parser.ts";
+export { compileExpression, compileExpressionDual } from "./parser.ts";
 export { ExpressionError } from "./tokenizer.ts";
 
 import type { Expr } from "@spicekit/protocol";

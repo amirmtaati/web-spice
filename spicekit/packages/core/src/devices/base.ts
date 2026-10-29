@@ -44,6 +44,10 @@ export interface DeviceEnv {
   readonly stateBases: ReadonlyMap<string, number>;
   /** Time of the step currently being solved (seconds). */
   time: number;
+  /** Global node-name → MNA offset (case-insensitive; ground = −1). */
+  nodeOffset(name: string): number;
+  /** Voltage-branch offset of an element by name, or −1 (B sources). */
+  branchOffset(name: string): number;
 }
 
 /** Unit of the local truncation error estimate (current or voltage). */

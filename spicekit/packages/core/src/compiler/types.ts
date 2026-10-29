@@ -38,6 +38,10 @@ export interface CompiledElement {
   modelParams?: Record<string, number>;
   /** S/W initial state from the ON/OFF card suffix. */
   on?: boolean;
+  /** B source: "V" (voltage-defined) or "I" (current-defined). */
+  kind?: "V" | "I";
+  /** B source: the behavioral expression source text. */
+  expr?: string;
 }
 
 export interface CompileWarning {

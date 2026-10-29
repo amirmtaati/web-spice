@@ -42,7 +42,7 @@ class UnionFind {
 /**
  * DC-conduction node roles per element type: which of the element's compiled
  * nodes join their group into one DC component for the floating check.
- * C is open at DC; I/G/B are open circuits; the MOS gate is insulated (its
+ * C is open at DC; I/G are open circuits; the MOS gate is insulated (its
  * DC path runs through the bulk junctions d-s-b only). Nonlinear junction
  * devices conduct (leakage) at DC, so a node held only through them still
  * has a DC path — matching what the MNA matrix can actually solve.
@@ -60,6 +60,15 @@ const DC_CONDUCTION_NODES: Readonly<Record<string, readonly number[]>> = {
   S: [0, 1, 2, 3],
   W: [0, 1],
 };
+
+/** DC conduction roles for an element: a V-kind B source defines a voltage
+ * (like E — its branch pins v_p − v_n); an I-kind B is an open circuit. */
+function dcRoles(el: CompiledCircuit["elements"][number]): readonly number[] | undefined {
+  if (el.type === "B" && el.kind === "V") {
+    return DC_CONDUCTION_NODES.E;
+  }
+  return DC_CONDUCTION_NODES[el.type];
+}
 
 export function checkGroundAndFloating(compiled: CompiledCircuit): void {
   if (compiled.nodeCount === 0) {
@@ -84,7 +93,7 @@ export function checkGroundAndFloating(compiled: CompiledCircuit): void {
 
   const uf = new UnionFind(compiled.nodeCount);
   for (const el of compiled.elements) {
-    const roles = DC_CONDUCTION_NODES[el.type];
+    const roles = dcRoles(el);
     if (roles === undefined) {
       continue;
     }
@@ -98,7 +107,7 @@ export function checkGroundAndFloating(compiled: CompiledCircuit): void {
   // other DC-conducting node.
   const groundedRoots = new Set<number>();
   for (const el of compiled.elements) {
-    const roles = DC_CONDUCTION_NODES[el.type];
+    const roles = dcRoles(el);
     if (roles === undefined) {
       continue;
     }
@@ -132,12 +141,14 @@ export function checkGroundAndFloating(compiled: CompiledCircuit): void {
  */
 export function checkSourceLoops(compiled: CompiledCircuit): void {
   const SOURCES = new Set(["V", "E", "H"]);
+  const isVoltageDefined = (el: CompiledCircuit["elements"][number]): boolean =>
+    SOURCES.has(el.type) || (el.type === "B" && el.kind === "V");
   const GROUND = compiled.nodeCount; // virtual id for the ground reference
   const uf = new UnionFind(compiled.nodeCount + 1);
   const seenNodes = new Set<number>();
   const sourceOwners: { a: number; b: number; name: string }[] = [];
   for (const el of compiled.elements) {
-    if (!SOURCES.has(el.type)) {
+    if (!isVoltageDefined(el)) {
       continue;
     }
     const a = el.nodes[0] as number;
