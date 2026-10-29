@@ -19,6 +19,8 @@ export interface Circuit {
   options: SimOptions;
   analyses: AnalysisRequest[];
   probes: ProbeSpec[];
+  /** `.measure` cards (E3): evaluated after each analysis run. */
+  measures?: MeasureSpec[];
   /** Node initial conditions from `.ic v(n)=value` (SPEC §5.5). */
   ic?: Record<NodeId, number>;
   /** element/node name -> UI component id, for error pinning (SPEC §9.8). */
@@ -136,6 +138,37 @@ export interface DcSweep {
 /** `.probe`/UI probe: which signals to stream back. */
 export interface ProbeSpec {
   signal: string; // "v(out)", "i(R1)", "p(C1)"
+}
+
+/**
+ * `.measure` specification (E3, "basic .measure"): one post-processing
+ * measurement over a finished analysis result.
+ */
+export interface MeasureSpec {
+  /** Which analysis kind this measure applies to. */
+  analysis: "tran" | "ac" | "dc" | "op";
+  /** Result name as written on the card. */
+  name: string;
+  /** Measurement function. */
+  mode: "find" | "max" | "min" | "avg" | "rms" | "pp" | "integ";
+  /** Signal reference, e.g. "v(out)" or "i(v1)". */
+  expr: string;
+  /** FIND … AT=<axis value> (time or frequency). */
+  at?: number;
+  /** FIND … WHEN <expr>=<value> [RISE|FALL|CROSS[=n]]. */
+  when?: { expr: string; value: number; edge: "rise" | "fall" | "cross"; count: number };
+  /** Window start for MAX/MIN/AVG/RMS/PP/INTEG (axis units). */
+  from?: number;
+  /** Window end. */
+  to?: number;
+}
+
+/** Evaluated `.measure` result attached to a run. */
+export interface MeasureResult {
+  name: string;
+  value: number;
+  /** false when the condition never matched (value is then NaN). */
+  found: boolean;
 }
 
 /**

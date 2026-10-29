@@ -59,6 +59,7 @@ export function expandSubcircuits(ir: Circuit): Circuit {
     options: ir.options,
     analyses: ir.analyses,
     probes: ir.probes,
+    ...(ir.measures !== undefined ? { measures: ir.measures } : {}),
     ...(ir.ic !== undefined ? { ic: ir.ic } : {}),
   };
 }

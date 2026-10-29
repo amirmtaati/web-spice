@@ -11,6 +11,8 @@ export type {
   DcSweep,
   Element,
   Expr,
+  MeasureResult,
+  MeasureSpec,
   ModelCard,
   NodeId,
   ProbeSpec,

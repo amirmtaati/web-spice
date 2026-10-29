@@ -4,7 +4,7 @@
  * are Float64Array for zero-copy transfer.
  */
 
-import type { AnalysisRequest } from "@spicekit/protocol";
+import type { AnalysisRequest, MeasureResult } from "@spicekit/protocol";
 
 export type AnalysisKind = AnalysisRequest["kind"];
 
@@ -37,4 +37,6 @@ export interface RunResult {
   axis2Name?: string;
   signals: SignalSeries[];
   stats: RunStats;
+  /** Evaluated `.measure` cards for this analysis (E3). */
+  measures?: MeasureResult[];
 }

@@ -248,6 +248,7 @@ export function compile(irInput: Circuit): CompiledCircuit {
 
   const compiled: CompiledCircuit = {
     probes: ir.probes,
+    ...(ir.measures !== undefined ? { measures: ir.measures } : {}),
     ...(ir.ic !== undefined ? { ic: ir.ic } : {}),
     nodeNames,
     nodeCount: nodeNames.length,

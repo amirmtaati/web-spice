@@ -138,6 +138,27 @@ export const circuitSchema = z.object({
   options: simOptions,
   analyses: z.array(analysisRequest),
   probes: z.array(z.object({ signal: z.string() })),
+  measures: z
+    .object({
+      analysis: z.enum(["tran", "ac", "dc", "op"]),
+      name: z.string().min(1),
+      mode: z.enum(["find", "max", "min", "avg", "rms", "pp", "integ"]),
+      expr: z.string().min(1),
+      at: z.number().optional(),
+      when: z
+        .object({
+          expr: z.string().min(1),
+          value: z.number(),
+          edge: z.enum(["rise", "fall", "cross"]),
+          count: z.number().int().positive(),
+        })
+        .optional(),
+      from: z.number().optional(),
+      to: z.number().optional(),
+    })
+    .loose()
+    .array()
+    .optional(),
   sourceMap: z.record(z.string(), z.string()).optional(),
 });
 

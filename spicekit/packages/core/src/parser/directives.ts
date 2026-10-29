@@ -4,7 +4,13 @@
  * Directives mutate a ParseAccumulator owned by the top-level parser.
  */
 
-import type { AnalysisRequest, Circuit, ModelCard, SimOptions } from "@spicekit/protocol";
+import type {
+  AnalysisRequest,
+  Circuit,
+  MeasureSpec,
+  ModelCard,
+  SimOptions,
+} from "@spicekit/protocol";
 import { DEFAULT_SIM_OPTIONS } from "@spicekit/protocol";
 import type { CardToken, LexCard } from "./lexer.ts";
 import { NetlistSyntaxError } from "./lexer.ts";
@@ -96,6 +102,10 @@ export function handleDirective(card: LexCard, acc: ParseAccumulator): void {
     case ".print":
     case ".probe":
       parseProbes(card, acc);
+      return;
+    case ".measure":
+    case ".meas":
+      parseMeasure(card, acc);
       return;
     case ".end":
       acc.ended = true;
@@ -499,4 +509,158 @@ function parseProbes(card: LexCard, acc: ParseAccumulator): void {
     const t = card.tokens[i] as CardToken;
     probes.push({ signal: t.text.toLowerCase() });
   }
+}
+
+/**
+ * .measure tran|ac|dc|op name FIND expr (AT=v | WHEN expr=v [RISE|FALL|CROSS[=n]])
+ * .measure tran|ac|dc|op name MAX|MIN|AVG|RMS|PP|INTEG expr [FROM=v] [TO=v]
+ */
+function parseMeasure(card: LexCard, acc: ParseAccumulator): void {
+  const t = card.tokens;
+  if (t.length < 5) {
+    throw new FAIL(
+      ".measure expects analysis, name, FIND/func, expr and qualifiers",
+      card.startLine,
+      1,
+    );
+  }
+  const analysisRaw = (t[1] as CardToken).text.toLowerCase();
+  if (
+    analysisRaw !== "tran" &&
+    analysisRaw !== "ac" &&
+    analysisRaw !== "dc" &&
+    analysisRaw !== "op"
+  ) {
+    throw new FAIL(
+      `.measure analysis must be tran|ac|dc|op, got "${analysisRaw}"`,
+      card.startLine,
+      1,
+    );
+  }
+  const analysis = analysisRaw as "tran" | "ac" | "dc" | "op";
+  const name = (t[2] as CardToken).text;
+  const modeRaw = (t[3] as CardToken).text.toLowerCase();
+
+  // The signal reference may be comma-split (v(a,b)) — rejoin tokens until
+  // it forms v(...) or i(...).
+  let i = 4;
+  const readSignalRef = (): string => {
+    let ref = (t[i] as CardToken).text.toLowerCase();
+    i += 1;
+    if (/^[vi]\(/.test(ref) && !ref.includes(")")) {
+      while (i < t.length && !ref.includes(")")) {
+        ref += (t[i] as CardToken).text;
+        i += 1;
+      }
+    }
+    return ref;
+  };
+
+  if (modeRaw === "find") {
+    const expr = readSignalRef();
+    const spec: MeasureSpec = { analysis, name, mode: "find", expr };
+    while (i < t.length) {
+      const kwRaw = (t[i] as CardToken).text;
+      const glued = kwRaw.indexOf("=");
+      const kw = (glued >= 0 ? kwRaw.slice(0, glued) : kwRaw).toLowerCase();
+      const readVal = (): number => {
+        // AT=5m (glued) or AT 5m (split).
+        if (glued >= 0) {
+          i += 1;
+          return parseValue(kwRaw.slice(glued + 1));
+        }
+        i += 2;
+        return parseValue((t[i - 1] as CardToken).text);
+      };
+      if (kw === "at") {
+        spec.at = readVal();
+        continue;
+      }
+      if (kw === "from") {
+        spec.from = readVal();
+        continue;
+      }
+      if (kw === "to") {
+        spec.to = readVal();
+        continue;
+      }
+      if (kw === "when") {
+        i += 1;
+        // WHEN expr=value (possibly split: expr, =, value)
+        let wref = (t[i] as CardToken).text.toLowerCase();
+        i += 1;
+        let wvalue = "";
+        const eq = wref.indexOf("=");
+        if (eq >= 0) {
+          wvalue = wref.slice(eq + 1);
+          wref = wref.slice(0, eq);
+        } else if ((t[i] as CardToken | undefined)?.text === "=") {
+          i += 1;
+          wvalue = (t[i] as CardToken).text;
+          i += 1;
+        }
+        if (!wvalue) {
+          throw new FAIL(".measure WHEN expects expr=value", card.startLine, 1);
+        }
+        spec.when = { expr: wref, value: parseValue(wvalue), edge: "cross", count: 1 };
+        continue;
+      }
+      if (kw === "rise" || kw === "fall" || kw === "cross") {
+        const edge = kw as "rise" | "fall" | "cross";
+        if (spec.when === undefined) {
+          throw new FAIL(`.measure ${kw.toUpperCase()} requires a WHEN clause`, card.startLine, 1);
+        }
+        spec.when.edge = edge;
+        spec.when.count = glued >= 0 ? parseValue(kwRaw.slice(glued + 1)) : 1;
+        i += 1;
+        continue;
+      }
+      throw new FAIL(`Unknown .measure qualifier "${kwRaw}"`, card.startLine, 1);
+    }
+    target(acc).measures = [...(target(acc).measures ?? []), spec];
+    return;
+  }
+
+  if (["max", "min", "avg", "rms", "pp", "integ"].includes(modeRaw)) {
+    const expr = readSignalRef();
+    const spec: MeasureSpec = {
+      analysis,
+      name,
+      mode: modeRaw as "max" | "min" | "avg" | "rms" | "pp" | "integ",
+      expr,
+    };
+    while (i < t.length) {
+      const kwRaw = (t[i] as CardToken).text;
+      const glued = kwRaw.indexOf("=");
+      const kw = (glued >= 0 ? kwRaw.slice(0, glued) : kwRaw).toLowerCase();
+      const readVal = (): number => {
+        if (glued >= 0) {
+          i += 1;
+          return parseValue(kwRaw.slice(glued + 1));
+        }
+        i += 2;
+        return parseValue((t[i - 1] as CardToken).text);
+      };
+      if (kw === "from") {
+        spec.from = readVal();
+        continue;
+      }
+      if (kw === "to") {
+        spec.to = readVal();
+        continue;
+      }
+      if (kw === "at") {
+        spec.at = readVal();
+        continue;
+      }
+      throw new FAIL(`Unknown .measure qualifier "${kwRaw}"`, card.startLine, 1);
+    }
+    target(acc).measures = [...(target(acc).measures ?? []), spec];
+    return;
+  }
+  throw new FAIL(
+    `.measure expects FIND|MAX|MIN|AVG|RMS|PP|INTEG, got "${modeRaw}"`,
+    card.startLine,
+    1,
+  );
 }

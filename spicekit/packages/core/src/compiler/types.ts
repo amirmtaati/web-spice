@@ -3,7 +3,7 @@
  * the pre-flight checks module can use them without a hub cycle.
  */
 
-import type { Element, ProbeSpec, SimOptions } from "@spicekit/protocol";
+import type { Element, MeasureSpec, ProbeSpec, SimOptions } from "@spicekit/protocol";
 
 export interface CompiledElement {
   element: Element;
@@ -55,6 +55,8 @@ export interface CompiledCircuit {
   nodeNames: string[];
   /** Probe filter from .probe cards (SPEC §5.1). */
   probes: ProbeSpec[];
+  /** `.measure` cards (E3), evaluated after each analysis run. */
+  measures?: MeasureSpec[];
   /** Node initial conditions from .ic (SPEC §5.5). */
   ic?: Record<string, number>;
   nodeCount: number;
