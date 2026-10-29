@@ -74,7 +74,7 @@ function runOpAnalysis(ws: Workspace, options: SimOptions): RunResult {
       rejectedSteps: 0,
       minStep: 0,
       maxStep: 0,
-      opMethod: "direct",
+      opMethod: outcome.method,
       notes: [],
     },
   };
@@ -97,8 +97,12 @@ function runDcAnalysis(
   options: SimOptions,
   request: Extract<AnalysisRequest, { kind: "dc" }>,
 ): RunResult {
-  void options;
-  const { outerValues, innerValues, points, snapshots } = runDcSweep(ws, request, request.second);
+  const { outerValues, innerValues, points, snapshots } = runDcSweep(
+    ws,
+    request,
+    request.second,
+    options,
+  );
   const axisName =
     request.second !== undefined
       ? `sweep ${request.source}/${request.second.source}`
@@ -161,7 +165,7 @@ function runTranAnalysis(
       rejectedSteps: outcome.rejectedSteps,
       minStep: outcome.minStep,
       maxStep: outcome.maxStep,
-      opMethod: request.uic === true ? "uic" : "direct",
+      opMethod: request.uic === true ? "uic" : outcome.opMethod,
       notes: [],
     },
   };

@@ -46,6 +46,15 @@ export interface Device {
   stampDC(m: MatrixStamp, env?: DeviceEnv): void;
   /** Companion-model stamp for a transient step of size h. */
   stampTran?(m: MatrixStamp, env: DeviceEnv, h: number, method: IntegrationMethod): void;
+  /**
+   * Junction limiting between Newton iterations (SPEC §5.3). Called after a
+   * solve with env.x holding the fresh iterate; the device compares each
+   * junction voltage against the value it stamped with (its state) and may
+   * clamp node potentials in env.x (SPICE2/3 semantics). Returns true when
+   * anything was clamped — the analysis then distrusts convergence for this
+   * iteration and keeps iterating.
+   */
+  limit?(env: DeviceEnv): boolean;
   /** Commit device state after an accepted step (reads fresh env.x). */
   accept?(env: DeviceEnv): void;
   /** Local truncation error estimate for the just-solved step. */
@@ -68,6 +77,38 @@ export function branchVoltage(env: DeviceEnv, plusIdx: number, minusIdx: number)
   const vp = p === -1 ? 0 : (env.x[p] as number);
   const vn = n === -1 ? 0 : (env.x[n] as number);
   return vp - vn;
+}
+
+/** Node potential with ground = 0 (limiting write-backs, device outputs). */
+export function nodePotential(env: DeviceEnv, nodeIdx: number): number {
+  const k = env.nodes[nodeIdx] as number;
+  return k === -1 ? 0 : (env.x[k] as number);
+}
+
+/**
+ * Write a clamped junction voltage back into the solution vector (SPICE2
+ * node-poking): move the potential of `plusIdx` so that v(plus) − v(minus)
+ * equals `v`, leaving the minus node untouched. Grounded nodes are skipped.
+ */
+export function pokeJunctionVoltage(
+  env: DeviceEnv,
+  plusIdx: number,
+  minusIdx: number,
+  v: number,
+): void {
+  const p = env.nodes[plusIdx] as number;
+  const n = env.nodes[minusIdx] as number;
+  if (n === -1) {
+    if (p >= 0) {
+      env.x[p] = v;
+    }
+    return;
+  }
+  if (p === -1) {
+    env.x[n] = -v;
+    return;
+  }
+  env.x[p] = (env.x[n] as number) + v;
 }
 
 /** Add a symmetric 2×2 conductance block between two node offsets. */

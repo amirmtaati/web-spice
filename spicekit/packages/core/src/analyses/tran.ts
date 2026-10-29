@@ -9,7 +9,7 @@
 
 import { EngineError, type SimOptions } from "@spicekit/protocol";
 import type { Device, IntegrationMethod } from "../devices/index.ts";
-import { runOp } from "./op.ts";
+import { runOp, stampAndSolve } from "./op.ts";
 import type { Workspace } from "./workspace.ts";
 
 const MAX_SAMPLES = 10_000_000; // SPEC §16 resource limits
@@ -31,6 +31,8 @@ export interface TranOutcome {
   rejectedSteps: number;
   minStep: number;
   maxStep: number;
+  /** Which OP ladder rung produced the initial operating point. */
+  opMethod: string;
 }
 
 export function runTransient(
@@ -61,10 +63,11 @@ export function runTransient(
 
   // --- Initialization -----------------------------------------------------
   let hLast = tstep;
+  let opMethod = "direct";
   if (req.uic === true) {
     initStatesFromIc(ws);
   } else {
-    runOp(ws, options, 0);
+    opMethod = runOp(ws, options, 0).method;
     initStatesFromOp(ws);
   }
   const hmin = Math.max(1e-18, tstop * 1e-15);
@@ -77,7 +80,7 @@ export function runTransient(
   // state is NOT committed — real integration starts from the IC states.
   if (req.uic === true) {
     const h0 = 1e-15;
-    stepWith(ws, h0, h0, "be");
+    newtonStep(ws, h0, h0, "be", options);
   }
   let t = 0;
   let gridIndex = tstart > 0 ? 0 : record(ws, snapshots, times, 0, 0, size, tstart);
@@ -110,17 +113,38 @@ export function runTransient(
     }
     const method: IntegrationMethod = beStepsLeft > 0 ? "be" : options.method;
 
-    // LTE gate only applies when the last two step sizes are locally
-    // uniform — the equal-spacing Δ³ estimate is meaningless otherwise
-    // (right after breakpoints or step-size changes).
-    const lteGate = method === "trap" && Math.abs(h - hPrev) <= 0.2 * Math.max(h, hPrev);
-
-    // Attempt the step; LTE control may reject and retry with h/2.
+    // Attempt the step; LTE control may reject and retry with h/2, and a
+    // Newton convergence failure halves h the same way (standard SPICE
+    // mitigation for stiff switching events). The LTE uniformity gate is
+    // re-evaluated per attempt: once h shrinks away from hPrev the equal-
+    // spacing Δ³ estimate is invalid (it degenerates to the history's own
+    // third difference and never vanishes), so the gate must open. An LTE
+    // rejection is the signature of a waveform kink — retries fall back to
+    // backward Euler (damped trapezoidal, SPEC §5.5), which is L-stable and
+    // cannot ring at switching events.
     let accepted = false;
+    let attemptMethod = method;
     for (let attempt = 0; attempt < 32; attempt++) {
-      stepWith(ws, t + h, h, method);
-      if (lteGate && !lteAcceptable(ws, options, h)) {
+      try {
+        newtonStep(ws, t + h, h, attemptMethod, options);
+      } catch (error) {
+        if (error instanceof EngineError && error.code === "E_NO_CONVERGENCE") {
+          h /= 2;
+          if (h < hmin) {
+            throw new EngineError({
+              code: "E_TIMESTEP_TOO_SMALL",
+              message: `Newton convergence collapsed the timestep at t=${t}`,
+            });
+          }
+          continue;
+        }
+        throw error;
+      }
+      const lteUniform =
+        attemptMethod === "trap" && Math.abs(h - hPrev) <= 0.2 * Math.max(h, hPrev);
+      if (lteUniform && !lteAcceptable(ws, options, h)) {
         rejectedSteps += 1;
+        attemptMethod = "be"; // kink detected: damp the ringing
         h /= 2;
         if (h < hmin) {
           throw new EngineError({
@@ -166,6 +190,7 @@ export function runTransient(
     rejectedSteps,
     minStep: Number.isFinite(minStep) ? minStep : 0,
     maxStep,
+    opMethod,
   };
 }
 
@@ -187,19 +212,58 @@ function record(
   return gridIndex + 1;
 }
 
-function stepWith(ws: Workspace, time: number, h: number, method: IntegrationMethod): void {
-  ws.beginStamp();
-  for (let i = 0; i < ws.devices.length; i++) {
-    ws.prepareEnv(i, time);
-    const d = ws.devices[i] as Device;
-    if (d.stampTran !== undefined) {
-      d.stampTran(ws, ws.envRef(), h, method);
-    } else {
-      d.stampDC(ws);
+/**
+ * One transient step = a full Newton loop (nonlinear devices iterate):
+ * stamp companion + nonlinear models, solve, limit, repeat until successive
+ * iterates agree within reltol/vntol/abstol and nothing was limited.
+ * Iteration cap is itl4 (SPICE transient iteration limit, default 10).
+ */
+function newtonStep(
+  ws: Workspace,
+  time: number,
+  h: number,
+  method: IntegrationMethod,
+  options: SimOptions,
+): void {
+  const xPrev = new Float64Array(ws.size);
+  xPrev.set(ws.x);
+  for (let iter = 0; iter < options.itl4; iter++) {
+    stampAndSolve(ws, time, true, h, method);
+    // Junction limiting between transient iterations (same as OP).
+    let limited = false;
+    for (let i = 0; i < ws.devices.length; i++) {
+      const d = ws.devices[i] as Device;
+      if (d.limit === undefined) {
+        continue;
+      }
+      ws.prepareEnv(i, time);
+      if (d.limit(ws.envRef())) {
+        limited = true;
+      }
     }
+    let converged = !limited;
+    if (converged) {
+      for (let i = 0; i < xPrev.length; i++) {
+        const av = xPrev[i] as number;
+        const bv = ws.x[i] as number;
+        const tol =
+          options.reltol * Math.max(Math.abs(av), Math.abs(bv)) +
+          (i < ws.nodeCount ? options.vntol : options.abstol);
+        if (Math.abs(av - bv) > tol) {
+          converged = false;
+          break;
+        }
+      }
+    }
+    if (converged) {
+      return;
+    }
+    xPrev.set(ws.x);
   }
-  ws.factor();
-  ws.solve();
+  throw new EngineError({
+    code: "E_NO_CONVERGENCE",
+    message: `Transient Newton did not converge in ${options.itl4} iterations at t=${time}`,
+  });
 }
 
 function commitStates(ws: Workspace): void {

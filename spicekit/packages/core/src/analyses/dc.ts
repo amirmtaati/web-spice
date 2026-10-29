@@ -1,16 +1,18 @@
 /**
  * DC sweep (SPEC §5.5): sweep an independent V/I source over a range, with
- * the previous solution as the warm start. E1 restamps and refactorizes per
- * point (simple and always correct); the factor-once/RHS-only optimization
- * lands with E4's sparse solver and symbolic reuse (SPEC §5.4 stage 2).
- * Nested sweeps: the inner sweep runs fully for each outer point; samples
- * are ordered inner-fastest.
+ * the previous solution as the warm start through a full Newton solve per
+ * point (nonlinear devices need iterations; E1's single-solve shortcut only
+ * held for linear circuits). E1 restamps and refactorizes per point (simple
+ * and always correct); the factor-once/RHS-only optimization lands with E4's
+ * sparse solver and symbolic reuse (SPEC §5.4 stage 2). Nested sweeps: the
+ * inner sweep runs fully for each outer point; samples are ordered
+ * inner-fastest.
  */
 
 import type { DcSweep } from "@spicekit/protocol";
 
-import { EngineError } from "@spicekit/protocol";
-import { stampAndSolve } from "./op.ts";
+import { EngineError, type SimOptions } from "@spicekit/protocol";
+import { runOpWarm } from "./op.ts";
 import type { Workspace } from "./workspace.ts";
 
 export interface SweepOutcome {
@@ -27,6 +29,7 @@ export function runDcSweep(
   ws: Workspace,
   sweep: DcSweep,
   second: DcSweep | undefined,
+  options: SimOptions,
 ): SweepOutcome {
   const outer = resolveSource(ws, sweep.source);
   const inner = second !== undefined ? resolveSource(ws, second.source) : undefined;
@@ -48,7 +51,7 @@ export function runDcSweep(
         (innerValues as Float64Array)[o * innerN + i] = innerValue;
         setSource(ws, inner, innerValue);
       }
-      stampAndSolve(ws, 0, false, 0, "be");
+      stampAndSolvePoint(ws, options);
       snapshots.set(ws.x, sample * size);
       sample += 1;
     }
@@ -65,6 +68,11 @@ function pointCount(s: DcSweep): number {
     throw new EngineError({ code: "E_PARSE", message: `Sweep of ${s.source} has no points` });
   }
   return n;
+}
+
+/** Newton solve at one sweep point, warm-started from the previous point. */
+function stampAndSolvePoint(ws: Workspace, options: SimOptions): void {
+  runOpWarm(ws, options, 0);
 }
 
 interface SweptSource {

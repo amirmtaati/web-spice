@@ -1,9 +1,16 @@
 /**
  * Operating point (SPEC §5.5): Newton-Raphson over the MNA stamps with
- * reltol/vntol/abstol convergence. All E1 devices are linear, so the loop
- * converges in one extra pass; the structure (per-iteration stamp, factor,
- * solve, convergence check) is what E2's junction limiting and the
- * gmin/source-stepping fallback ladder plug into.
+ * reltol/vntol/abstol convergence, junction limiting (device `limit` hooks,
+ * SPICE2 node-poking semantics), and the E2 fallback ladder
+ *
+ *   direct Newton → gmin stepping → source stepping
+ *
+ * matching ngspice's CKTop ladder (cktop.c): the gmin rung adds a diagonal
+ * conductance from every node to ground, starting at gmin·GMIN_FACTOR^N and
+ * descending by GMIN_FACTOR per successful stage; the source rung scales all
+ * independent sources from 0 up to full value. Each stage warm-starts from
+ * the previous solution and a final plain Newton at nominal gmin validates
+ * the converged point (the diagonal gmin is removed before reporting).
  */
 
 import type { SimOptions } from "@spicekit/protocol";
@@ -16,7 +23,15 @@ export interface OpOutcome {
   iterations: number;
   /** True when the Newton loop converged within itl1 iterations. */
   converged: boolean;
+  /** Which ladder rung produced the operating point (SPEC §5.5 reporting). */
+  method: "direct" | "gmin" | "source";
 }
+
+/** ngspice spice3_gmin: 10 decade steps from gmin·10^10 down to gmin. */
+const GMIN_STEPS = 10;
+const GMIN_FACTOR = 10;
+/** ngspice spice3_src: 10 equal source increments 0 → 1. */
+const SRC_STEPS = 10;
 
 /**
  * Stamp all devices (DC or transient companion), factor, solve.
@@ -36,26 +51,31 @@ export function stampAndSolve(
     if (tran && d.stampTran !== undefined) {
       d.stampTran(ws, ws.envRef(), h, method);
     } else {
-      d.stampDC(ws);
+      d.stampDC(ws, ws.envRef());
     }
   }
   ws.factor();
   ws.solve();
 }
 
-/** Newton loop: stamp+solve repeatedly until converged (linear: 1 pass). */
-function solveNewton(ws: Workspace, options: SimOptions, time: number): OpOutcome {
-  const previous = new Float64Array(ws.size);
-  let iterations = 0;
-  for (let iter = 0; iter < options.itl1; iter++) {
-    stampAndSolve(ws, time, false, 0, "be");
-    iterations += 1;
-    if (iter > 0 && isConverged(previous, ws.x, ws.nodeCount, options)) {
-      return { iterations, converged: true };
+/**
+ * Junction limiting pass after a solve: devices may clamp node potentials in
+ * ws.x (SPICE2 semantics). Returns true when anything was clamped — the
+ * iterate was moved, so convergence cannot be trusted this pass.
+ */
+function limitPass(ws: Workspace, time: number): boolean {
+  let limited = false;
+  for (let i = 0; i < ws.devices.length; i++) {
+    const d = ws.devices[i] as Device;
+    if (d.limit === undefined) {
+      continue;
     }
-    previous.set(ws.x);
+    ws.prepareEnv(i, time);
+    if (d.limit(ws.envRef())) {
+      limited = true;
+    }
   }
-  return { iterations, converged: isConverged(previous, ws.x, ws.nodeCount, options) };
+  return limited;
 }
 
 /** SPICE convergence: per-unknown |Δ| ≤ reltol·max(|a|,|b|) + vntol/abstol. */
@@ -78,14 +98,181 @@ function isConverged(
   return true;
 }
 
-/** Run a DC operating point; throws E_NO_CONVERGENCE on failure. */
+/**
+ * Newton loop from the current x as the initial guess: stamp+solve, limit,
+ * repeat until successive iterates agree and nothing was limited. Returns
+ * the iteration count and whether it converged within itl1.
+ */
+function solveNewton(
+  ws: Workspace,
+  options: SimOptions,
+  time: number,
+  xPrev: Float64Array,
+): { iterations: number; converged: boolean } {
+  xPrev.set(ws.x);
+  let iterations = 0;
+  for (let iter = 0; iter < options.itl1; iter++) {
+    stampAndSolve(ws, time, false, 0, "be");
+    iterations += 1;
+    const limited = limitPass(ws, time);
+    if (!limited && isConverged(xPrev, ws.x, ws.nodeCount, options)) {
+      return { iterations, converged: true };
+    }
+    xPrev.set(ws.x);
+  }
+  return { iterations, converged: false };
+}
+
+interface SourceHandle {
+  index: number;
+  base: number;
+}
+
+/** Collect independent V/I sources with their nominal DC values. */
+function collectSources(ws: Workspace): SourceHandle[] {
+  const handles: SourceHandle[] = [];
+  for (let i = 0; i < ws.devices.length; i++) {
+    const d = ws.devices[i] as Device;
+    if (d.setDc !== undefined && d.dcValue !== undefined) {
+      handles.push({ index: i, base: d.dcValue() });
+    }
+  }
+  return handles;
+}
+
+function setSourceScale(ws: Workspace, handles: SourceHandle[], scale: number): void {
+  for (const h of handles) {
+    const d = ws.devices[h.index] as Device;
+    (d.setDc as (v: number) => void)(h.base * scale);
+  }
+}
+
+/** True when the error is a recoverable matrix failure (not a bug). */
+function isSingular(error: unknown): boolean {
+  return error instanceof EngineError && error.code === "E_SINGULAR_MATRIX";
+}
+
+/**
+ * One direct Newton attempt at the current workspace setting. Never throws
+ * on non-convergence; singular matrices count as failure so the ladder's
+ * gmin rung (which grounds floating nodes) gets its chance.
+ */
+function attemptDirect(
+  ws: Workspace,
+  options: SimOptions,
+  time: number,
+  xPrev: Float64Array,
+): boolean {
+  try {
+    return solveNewton(ws, options, time, xPrev).converged;
+  } catch (error) {
+    if (isSingular(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/** ngspice spice3_gmin: descending diagonal gmin, warm start, final check. */
+function gminStepping(
+  ws: Workspace,
+  options: SimOptions,
+  time: number,
+  xPrev: Float64Array,
+): boolean {
+  let diag = options.gmin * GMIN_FACTOR ** GMIN_STEPS;
+  for (let step = 0; step <= GMIN_STEPS; step++) {
+    ws.nodeGmin = diag;
+    ws.x.fill(0);
+    let ok: boolean;
+    try {
+      ok = solveNewton(ws, options, time, xPrev).converged;
+    } catch (error) {
+      if (!isSingular(error)) {
+        throw error;
+      }
+      ok = false;
+    }
+    if (!ok) {
+      ws.nodeGmin = 0;
+      return false;
+    }
+    diag /= GMIN_FACTOR;
+  }
+  // Final validation at nominal gmin with the diagonal shunt removed — the
+  // reported operating point must satisfy the unmodified circuit.
+  ws.nodeGmin = 0;
+  ws.x.fill(0);
+  return attemptDirect(ws, options, time, xPrev);
+}
+
+/** ngspice spice3_src: scale independent sources 0 → 1, warm start each. */
+function sourceStepping(
+  ws: Workspace,
+  options: SimOptions,
+  time: number,
+  xPrev: Float64Array,
+): boolean {
+  const handles = collectSources(ws);
+  for (let step = 0; step <= SRC_STEPS; step++) {
+    const scale = step / SRC_STEPS;
+    setSourceScale(ws, handles, scale);
+    ws.x.fill(0);
+    let ok: boolean;
+    try {
+      ok = solveNewton(ws, options, time, xPrev).converged;
+    } catch (error) {
+      if (!isSingular(error)) {
+        setSourceScale(ws, handles, 1);
+        throw error;
+      }
+      ok = false;
+    }
+    if (!ok) {
+      setSourceScale(ws, handles, 1);
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Run a DC operating point with the full fallback ladder; throws
+ * E_NO_CONVERGENCE when every rung fails. Reports the winning rung.
+ */
 export function runOp(ws: Workspace, options: SimOptions, time = 0): OpOutcome {
-  const outcome = solveNewton(ws, options, time);
-  if (!outcome.converged) {
+  const xPrev = new Float64Array(ws.size);
+  ws.nodeGmin = 0;
+  ws.x.fill(0);
+  if (attemptDirect(ws, options, time, xPrev)) {
+    return { iterations: 0, converged: true, method: "direct" };
+  }
+  // Rung 2: gmin stepping (floating nodes, metastable latches).
+  if (gminStepping(ws, options, time, xPrev)) {
+    return { iterations: 0, converged: true, method: "gmin" };
+  }
+  // Rung 3: source stepping (strong positive feedback).
+  if (sourceStepping(ws, options, time, xPrev)) {
+    return { iterations: 0, converged: true, method: "source" };
+  }
+  throw new EngineError({
+    code: "E_NO_CONVERGENCE",
+    message: `Operating point did not converge: direct Newton, gmin stepping (${GMIN_STEPS} steps) and source stepping (${SRC_STEPS} steps) all failed (itl1=${options.itl1})`,
+  });
+}
+
+/**
+ * Direct-only Newton for hot paths that already have a good warm start
+ * (DC sweeps, transient steps). Throws E_NO_CONVERGENCE on failure.
+ */
+export function runOpWarm(ws: Workspace, options: SimOptions, time = 0): OpOutcome {
+  const xPrev = new Float64Array(ws.size);
+  const r = solveNewton(ws, options, time, xPrev);
+  if (!r.converged) {
     throw new EngineError({
       code: "E_NO_CONVERGENCE",
-      message: `Operating point did not converge in ${outcome.iterations} iterations (itl1=${options.itl1})`,
+      message: `Newton did not converge in ${r.iterations} iterations (itl1=${options.itl1})`,
     });
   }
-  return outcome;
+  return { iterations: r.iterations, converged: true, method: "direct" };
 }

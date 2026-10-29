@@ -24,6 +24,11 @@ export class Workspace implements MatrixStamp {
   /** Per-device MNA offsets (parallel to `devices`). */
   readonly deviceNodes: number[][];
   readonly deviceBranches: number[][];
+  /**
+   * Diagonal conductance added from every node to ground on the next stamp
+   * (gmin stepping rung of the OP ladder, SPEC §5.5). 0 = nominal circuit.
+   */
+  nodeGmin = 0;
 
   private readonly work: Float64Array; // LU factors (destroyed copy of a)
   private readonly piv: Int32Array;
@@ -97,10 +102,15 @@ export class Workspace implements MatrixStamp {
     return -1;
   }
 
-  /** Begin a fresh stamp: zero the matrix and RHS. */
+  /** Begin a fresh stamp: zero the matrix and RHS, add the diagonal gmin. */
   beginStamp(): void {
     this.a.fill(0);
     this.rhs.fill(0);
+    if (this.nodeGmin > 0) {
+      for (let i = 0; i < this.nodeCount; i++) {
+        this.a[i * this.size + i] = this.nodeGmin;
+      }
+    }
     this.factored = false;
   }
 
