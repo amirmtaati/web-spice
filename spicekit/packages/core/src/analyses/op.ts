@@ -3,14 +3,21 @@
  * reltol/vntol/abstol convergence, junction limiting (device `limit` hooks,
  * SPICE2 node-poking semantics), and the E2 fallback ladder
  *
- *   direct Newton → gmin stepping → source stepping
+ *   direct Newton → gmin stepping → source stepping → pseudo-transient
  *
  * matching ngspice's CKTop ladder (cktop.c): the gmin rung adds a diagonal
  * conductance from every node to ground, starting at gmin·GMIN_FACTOR^N and
  * descending by GMIN_FACTOR per successful stage; the source rung scales all
- * independent sources from 0 up to full value. Each stage warm-starts from
- * the previous solution and a final plain Newton at nominal gmin validates
- * the converged point (the diagonal gmin is removed before reporting).
+ * independent sources from 0 up to full value; the pseudo-transient rung
+ * integrates the DC network with a capacitor from every node to ground in
+ * pseudo-time (homotopy by capacitance) until the flow reaches steady state.
+ * Each stage warm-starts from the previous solution and a final plain Newton
+ * at nominal gmin validates the converged point (the diagonal gmin is removed
+ * before reporting).
+ *
+ * ngspice-compatible knobs (SPEC §5.9): `.options noopiter=1` skips the
+ * direct attempt and enters the ladder at gmin stepping; `gminsteps` and
+ * `srcsteps` set each rung's stage count (0 skips the rung).
  */
 
 import type { SimOptions } from "@spicekit/protocol";
@@ -24,14 +31,23 @@ export interface OpOutcome {
   /** True when the Newton loop converged within itl1 iterations. */
   converged: boolean;
   /** Which ladder rung produced the operating point (SPEC §5.5 reporting). */
-  method: "direct" | "gmin" | "source";
+  method: "direct" | "gmin" | "source" | "pseudo";
 }
 
 /** ngspice spice3_gmin: 10 decade steps from gmin·10^10 down to gmin. */
-const GMIN_STEPS = 10;
+const DEFAULT_GMIN_STEPS = 10;
 const GMIN_FACTOR = 10;
 /** ngspice spice3_src: 10 equal source increments 0 → 1. */
-const SRC_STEPS = 10;
+const DEFAULT_SRC_STEPS = 10;
+
+/** Pseudo-transient homotopy (final rung): per-node capacitance [F]. */
+const PT_CAP = 1e-9;
+const PT_H0 = 1e-9;
+const PT_H_MAX = 1e-3;
+const PT_GROWTH = 1.5;
+const PT_MAX_STEPS = 200;
+/** Consecutive steady steps (SPICE reltol/vntol per step) before validation. */
+const PT_STEADY_RUNS = 3;
 
 /**
  * Stamp all devices (DC or transient companion), factor, solve.
@@ -179,9 +195,10 @@ function gminStepping(
   options: SimOptions,
   time: number,
   xPrev: Float64Array,
+  steps: number,
 ): boolean {
-  let diag = options.gmin * GMIN_FACTOR ** GMIN_STEPS;
-  for (let step = 0; step <= GMIN_STEPS; step++) {
+  let diag = options.gmin * GMIN_FACTOR ** steps;
+  for (let step = 0; step <= steps; step++) {
     ws.nodeGmin = diag;
     ws.x.fill(0);
     let ok: boolean;
@@ -212,10 +229,11 @@ function sourceStepping(
   options: SimOptions,
   time: number,
   xPrev: Float64Array,
+  steps: number,
 ): boolean {
   const handles = collectSources(ws);
-  for (let step = 0; step <= SRC_STEPS; step++) {
-    const scale = step / SRC_STEPS;
+  for (let step = 0; step <= steps; step++) {
+    const scale = step / steps;
     setSourceScale(ws, handles, scale);
     ws.x.fill(0);
     let ok: boolean;
@@ -237,28 +255,95 @@ function sourceStepping(
 }
 
 /**
+ * Pseudo-transient homotopy (SPEC §5.5 final rung, ngspice CKTop PT):
+ * integrate the DC network with a capacitor from every node to ground in
+ * pseudo-time. The ODE dx/dt = −f(x)/C flows toward a DC solution; when the
+ * flow stalls (reltol/vntol-steady for consecutive steps) a final plain
+ * Newton validates the point against the unmodified circuit.
+ */
+function pseudoTransient(
+  ws: Workspace,
+  options: SimOptions,
+  time: number,
+  xPrev: Float64Array,
+): boolean {
+  const vPrev = new Float64Array(ws.size);
+  ws.x.fill(0);
+  vPrev.set(ws.x);
+  let h = PT_H0;
+  let steady = 0;
+  for (let step = 0; step < PT_MAX_STEPS && steady < PT_STEADY_RUNS; step++) {
+    ws.beginStamp();
+    for (let i = 0; i < ws.devices.length; i++) {
+      const d = ws.devices[i] as Device;
+      ws.prepareEnv(i, time);
+      if (d.limit !== undefined) {
+        d.limit(ws.envRef());
+      }
+      d.stampDC(ws, ws.envRef());
+    }
+    // BE companion of the per-node homotopy capacitor: G = C/h with the
+    // previous pseudo-time voltage as the companion source.
+    const g = PT_CAP / h;
+    for (let i = 0; i < ws.nodeCount; i++) {
+      ws.addA(i, i, g);
+      ws.addRhs(i, g * (vPrev[i] as number));
+    }
+    try {
+      ws.factor();
+      ws.solve();
+    } catch (error) {
+      if (!isSingular(error)) {
+        throw error;
+      }
+      return false;
+    }
+    if (isConverged(vPrev, ws.x, ws.nodeCount, options)) {
+      steady += 1;
+    } else {
+      steady = 0;
+    }
+    vPrev.set(ws.x);
+    h = Math.min(h * PT_GROWTH, PT_H_MAX);
+  }
+  if (steady < PT_STEADY_RUNS) {
+    return false;
+  }
+  return attemptDirect(ws, options, time, xPrev).ok;
+}
+
+/**
  * Run a DC operating point with the full fallback ladder; throws
  * E_NO_CONVERGENCE when every rung fails. Reports the winning rung.
  */
 export function runOp(ws: Workspace, options: SimOptions, time = 0): OpOutcome {
   const xPrev = new Float64Array(ws.size);
+  const gminSteps = options.gminsteps ?? DEFAULT_GMIN_STEPS;
+  const srcSteps = options.srcsteps ?? DEFAULT_SRC_STEPS;
   ws.nodeGmin = 0;
   ws.x.fill(0);
-  const direct = attemptDirect(ws, options, time, xPrev);
-  if (direct.ok) {
-    return { iterations: direct.iterations, converged: true, method: "direct" };
+  if (!options.noopiter) {
+    const direct = attemptDirect(ws, options, time, xPrev);
+    if (direct.ok) {
+      return { iterations: direct.iterations, converged: true, method: "direct" };
+    }
   }
   // Rung 2: gmin stepping (floating nodes, metastable latches).
-  if (gminStepping(ws, options, time, xPrev)) {
+  if (gminSteps > 0 && gminStepping(ws, options, time, xPrev, gminSteps)) {
     return { iterations: 0, converged: true, method: "gmin" };
   }
   // Rung 3: source stepping (strong positive feedback).
-  if (sourceStepping(ws, options, time, xPrev)) {
+  if (srcSteps > 0 && sourceStepping(ws, options, time, xPrev, srcSteps)) {
     return { iterations: 0, converged: true, method: "source" };
+  }
+  // Rung 4: pseudo-transient homotopy (no DC fixed point reachable by
+  // continuation from zero — relaxation oscillators still fail here).
+  if (pseudoTransient(ws, options, time, xPrev)) {
+    return { iterations: 0, converged: true, method: "pseudo" };
   }
   throw new EngineError({
     code: "E_NO_CONVERGENCE",
-    message: `Operating point did not converge: direct Newton, gmin stepping (${GMIN_STEPS} steps) and source stepping (${SRC_STEPS} steps) all failed (itl1=${options.itl1})`,
+    message: `Operating point did not converge: direct Newton, gmin stepping (${gminSteps} steps), source stepping (${srcSteps} steps) and pseudo-transient all failed (itl1=${options.itl1})`,
   });
 }
 

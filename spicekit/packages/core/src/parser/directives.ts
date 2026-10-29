@@ -238,6 +238,11 @@ const OPTION_KEYS: Readonly<Record<string, keyof SimOptions>> = {
   temp: "temp",
   tnom: "tnom",
   maxstep: "maxStepRatio",
+  // ngspice ladder knobs; the parser strips a leading "no" flag prefix, so
+  // `.options noopiter=1` arrives here as "opiter" (ngspice .options noopiter).
+  opiter: "noopiter",
+  gminsteps: "gminsteps",
+  srcsteps: "srcsteps",
 };
 
 function parseOptions(card: LexCard, acc: ParseAccumulator): void {
@@ -298,6 +303,15 @@ function applyNumericOption(options: SimOptions, key: keyof SimOptions, value: n
       return;
     case "maxStepRatio":
       options.maxStepRatio = value;
+      return;
+    case "noopiter":
+      options.noopiter = value;
+      return;
+    case "gminsteps":
+      options.gminsteps = value;
+      return;
+    case "srcsteps":
+      options.srcsteps = value;
       return;
     case "method":
     case "seed":

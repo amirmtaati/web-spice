@@ -22,6 +22,9 @@ const simOptions = z.object({
   tnom: z.number(),
   maxStepRatio: z.number().positive().optional(),
   seed: z.number().int().optional(),
+  noopiter: z.number().int().nonnegative().optional(),
+  gminsteps: z.number().int().nonnegative().optional(),
+  srcsteps: z.number().int().nonnegative().optional(),
 });
 
 const waveform = z.object({ kind: z.string() }).loose();

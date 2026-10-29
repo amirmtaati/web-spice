@@ -155,6 +155,17 @@ export interface SimOptions {
   tnom: number; // default 27 (°C)
   maxStepRatio?: number;
   seed?: number;
+  /**
+   * OP fallback-ladder controls (ngspice-compatible, SPEC §5.5):
+   *  - noopiter=1 skips the direct Newton attempt and enters the ladder at
+   *    gmin stepping (ngspice `.options noopiter`).
+   *  - gminsteps / srcsteps set the number of continuation stages for the
+   *    gmin and source rungs (ngspice `gminsteps`/`srcsteps`); 0 skips the
+   *    rung. Defaults 10/10 when unset.
+   */
+  noopiter?: number;
+  gminsteps?: number;
+  srcsteps?: number;
 }
 
 export const DEFAULT_SIM_OPTIONS: SimOptions = {
