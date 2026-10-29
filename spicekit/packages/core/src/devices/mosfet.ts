@@ -30,8 +30,8 @@
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
-import type { Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
-import { nodePotential } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
+import { nodePotential, stampCapacitanceAc } from "./base.ts";
 import { JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
   depletionCapacitance,
@@ -298,6 +298,64 @@ export function mosfetDevice(ce: CompiledElement, options: SimOptions): Device {
       if (cgb > 0) {
         capGB.stampTran(stamp, env, h, method, cgb);
       }
+    },
+    stampAc(stamp: AcStamp, env: DeviceEnv, omega: number): void {
+      // Small-signal at the OP: the same y-matrix as the DC Jacobian (mode
+      // xnrm/xrev included) plus junction and Meyer capacitances evaluated
+      // at the stored operating point.
+      const st = env.stateBase;
+      const vgs = env.state[st + VGS0] as number;
+      const vds = env.state[st + VDS0] as number;
+      const vbs = env.state[st + VBS0] as number;
+      const vbd = env.state[st + VBD0] as number;
+      const s = solveDc(vgs, vds, vbs);
+      const mode = vds >= 0 ? 1 : -1;
+      const xnrm = mode >= 0 ? 1 : 0;
+      const xrev = mode >= 0 ? 0 : 1;
+      const gmT = (xnrm - xrev) * s.gm;
+      const gmbsT = (xnrm - xrev) * s.gmbs;
+      if (bNode >= 0) {
+        stamp.addAc(bNode, bNode, s.gbd + s.gbs, 0);
+        if (dNode >= 0) {
+          stamp.addAc(bNode, dNode, -s.gbd, 0);
+        }
+        if (sNode >= 0) {
+          stamp.addAc(bNode, sNode, -s.gbs, 0);
+        }
+      }
+      if (dNode >= 0) {
+        stamp.addAc(dNode, dNode, s.gds + s.gbd + xrev * (s.gm + s.gmbs), 0);
+        if (gNode >= 0) {
+          stamp.addAc(dNode, gNode, gmT, 0);
+        }
+        if (bNode >= 0) {
+          stamp.addAc(dNode, bNode, -s.gbd + gmbsT, 0);
+        }
+        if (sNode >= 0) {
+          stamp.addAc(dNode, sNode, -s.gds - xnrm * (s.gm + s.gmbs), 0);
+        }
+      }
+      if (sNode >= 0) {
+        stamp.addAc(sNode, sNode, s.gds + s.gbs + xnrm * (s.gm + s.gmbs), 0);
+        if (gNode >= 0) {
+          stamp.addAc(sNode, gNode, -gmT, 0);
+        }
+        if (bNode >= 0) {
+          stamp.addAc(sNode, bNode, -s.gbs - gmbsT, 0);
+        }
+        if (dNode >= 0) {
+          stamp.addAc(sNode, dNode, -s.gds - xrev * (s.gm + s.gmbs), 0);
+        }
+      }
+      // Capacitances at the OP.
+      const cbsCap = cbs > 0 ? depletionCapacitance(vbs, { ...bulkCap, cj0: cbs }) : 0;
+      const cbdCap = cbd > 0 ? depletionCapacitance(vbd, { ...bulkCap, cj0: cbd }) : 0;
+      const [cgs, cgd, cgb] = gateCaps(vgs, vgs - vds, s);
+      stampCapacitanceAc(stamp, sNode, bNode, cbsCap, omega);
+      stampCapacitanceAc(stamp, dNode, bNode, cbdCap, omega);
+      stampCapacitanceAc(stamp, gNode, sNode, cgs, omega);
+      stampCapacitanceAc(stamp, gNode, dNode, cgd, omega);
+      stampCapacitanceAc(stamp, gNode, bNode, cgb, omega);
     },
     accept(env: DeviceEnv): void {
       capS.accept(env);

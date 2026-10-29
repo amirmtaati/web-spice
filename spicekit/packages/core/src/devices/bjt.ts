@@ -44,9 +44,9 @@
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
-import type { Device, DeviceEnv, MatrixStamp } from "./base.ts";
-import { stampConductance } from "./base.ts";
-import { type CapRef, JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
+import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
+import { stampCapacitanceAc, stampConductance, stampConductanceAc } from "./base.ts";
+import { type CapRef, JunctionCap, resolveCapRef, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
   depletionCapacitance,
   diffusionCapacitance,
@@ -198,6 +198,21 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
     }
   };
 
+  /** Complex form of `stampResistors` (AC small-signal). */
+  const stampResistorsAc = (stamp: AcStamp, env: DeviceEnv): void => {
+    if (hasRb) {
+      stampConductanceAc(stamp, env.nodes[1] as number, env.branches[0] as number, 1 / rb, 0);
+    }
+    if (hasRc) {
+      const ci = hasRb ? 1 : 0;
+      stampConductanceAc(stamp, env.nodes[0] as number, env.branches[ci] as number, 1 / rc, 0);
+    }
+    if (hasRe) {
+      const ei = (hasRb ? 1 : 0) + (hasRc ? 1 : 0);
+      stampConductanceAc(stamp, env.nodes[2] as number, env.branches[ei] as number, 1 / re, 0);
+    }
+  };
+
   /**
    * Stamp from the stored (limited) junction voltages: evaluate the
    * Ebers-Moll solution there and anchor the Newton source at the
@@ -260,6 +275,27 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
         bcDif.stampTran(stamp, env, h, method, cBcDif);
       }
     },
+    stampAc(stamp: AcStamp, env: DeviceEnv, omega: number): void {
+      // Small-signal at the OP: the identical 3×3 transconductance block
+      // between prime nodes (no anchor terms — the Jacobian only), parasitic
+      // resistors, and cπ/cμ at the stored junction voltages.
+      const vbe0 = env.state[env.stateBase + VBE0] as number;
+      const vbc0 = env.state[env.stateBase + VBC0] as number;
+      const s = solveDc(vbe0, vbc0);
+      const gff = s.gm + s.go;
+      const gfr = -(s.gmu + s.go);
+      const grf = s.gpi;
+      const grr = s.gmu;
+      const o = offsets(env);
+      stampBjtBlockAc(stamp, o.b, o.c, o.e, gff, gfr, grf, grr);
+      stampResistorsAc(stamp, env);
+      const [cBe, cBeDif, cBc, cBcDif] = capValues(vbe0, vbc0);
+      const bp = resolveCapRef(env, bRef);
+      const ep = resolveCapRef(env, eRef);
+      const cp = resolveCapRef(env, cRef);
+      stampCapacitanceAc(stamp, bp, ep, cBe + cBeDif, omega);
+      stampCapacitanceAc(stamp, bp, cp, cBc + cBcDif, omega);
+    },
     accept(env: DeviceEnv): void {
       beCap.accept(env);
       beDif.accept(env);
@@ -284,6 +320,60 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
       );
     },
   };
+}
+
+/**
+ * Complex form of the prime-node block for AC (the Jacobian only — no
+ * anchor currents exist in small-signal). Coefficients identical to
+ * `stampBjtTerminals`; the emitter row is the negative sum of the other two
+ * rows, which keeps KCL exact.
+ */
+function stampBjtBlockAc(
+  stamp: AcStamp,
+  bNode: number,
+  cNode: number,
+  eNode: number,
+  gff: number,
+  gfr: number,
+  grf: number,
+  grr: number,
+): void {
+  const gBB = grf + grr;
+  const gBC = -grr;
+  const gBE = -grf;
+  const gCB = gff + gfr;
+  const gCC = -gfr;
+  const gCE = -gff;
+  const gEB = -(gBB + gCB);
+  const gEC = -(gBC + gCC);
+  const gEE = -(gBE + gCE);
+  if (bNode >= 0) {
+    stamp.addAc(bNode, bNode, gBB, 0);
+    if (cNode >= 0) {
+      stamp.addAc(bNode, cNode, gBC, 0);
+    }
+    if (eNode >= 0) {
+      stamp.addAc(bNode, eNode, gBE, 0);
+    }
+  }
+  if (cNode >= 0) {
+    stamp.addAc(cNode, cNode, gCC, 0);
+    if (bNode >= 0) {
+      stamp.addAc(cNode, bNode, gCB, 0);
+    }
+    if (eNode >= 0) {
+      stamp.addAc(cNode, eNode, gCE, 0);
+    }
+  }
+  if (eNode >= 0) {
+    stamp.addAc(eNode, eNode, gEE, 0);
+    if (bNode >= 0) {
+      stamp.addAc(eNode, bNode, gEB, 0);
+    }
+    if (cNode >= 0) {
+      stamp.addAc(eNode, cNode, gEC, 0);
+    }
+  }
 }
 
 /**

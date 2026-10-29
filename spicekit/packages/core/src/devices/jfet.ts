@@ -34,8 +34,8 @@
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
-import type { Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
-import { nodePotential } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
+import { nodePotential, stampCapacitanceAc } from "./base.ts";
 import { JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
   depletionCapacitance,
@@ -230,6 +230,45 @@ export function jfetDevice(ce: CompiledElement, options: SimOptions): Device {
       if (cgdCap > 0) {
         capGD.stampTran(stamp, env, h, method, cgdCap);
       }
+    },
+    stampAc(stamp: AcStamp, env: DeviceEnv, omega: number): void {
+      // Small-signal at the OP: the y-matrix from the DC Jacobian plus the
+      // gate depletion capacitances at the stored junction voltages.
+      const st = env.stateBase;
+      const vgs = env.state[st + VGS0] as number;
+      const vgd = env.state[st + VGD0] as number;
+      const s = solveDc(vgs, vgd);
+      if (gNode >= 0) {
+        stamp.addAc(gNode, gNode, s.ggs + s.ggd, 0);
+        if (dNode >= 0) {
+          stamp.addAc(gNode, dNode, -s.ggd, 0);
+        }
+        if (sNode >= 0) {
+          stamp.addAc(gNode, sNode, -s.ggs, 0);
+        }
+      }
+      if (dNode >= 0) {
+        stamp.addAc(dNode, dNode, s.gds + s.ggd, 0);
+        if (gNode >= 0) {
+          stamp.addAc(dNode, gNode, s.gm - s.ggd, 0);
+        }
+        if (sNode >= 0) {
+          stamp.addAc(dNode, sNode, -s.gds - s.gm, 0);
+        }
+      }
+      if (sNode >= 0) {
+        stamp.addAc(sNode, sNode, s.gds + s.gm + s.ggs, 0);
+        if (gNode >= 0) {
+          stamp.addAc(sNode, gNode, -s.ggs - s.gm, 0);
+        }
+        if (dNode >= 0) {
+          stamp.addAc(sNode, dNode, -s.gds, 0);
+        }
+      }
+      const cgsCap = cgs0 > 0 ? depletionCapacitance(vgs, { ...capModel, cj0: cgs0 }) : 0;
+      const cgdCap = cgd0 > 0 ? depletionCapacitance(vgd, { ...capModel, cj0: cgd0 }) : 0;
+      stampCapacitanceAc(stamp, gNode, sNode, cgsCap, omega);
+      stampCapacitanceAc(stamp, gNode, dNode, cgdCap, omega);
     },
     accept(env: DeviceEnv): void {
       capGS.accept(env);

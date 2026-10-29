@@ -166,3 +166,17 @@ export function stampConductanceAc(
     }
   }
 }
+
+/** Add a jωC capacitor block between two node offsets (no-op when C ≤ 0). */
+export function stampCapacitanceAc(
+  stamp: AcStamp,
+  p: number,
+  n: number,
+  c: number,
+  omega: number,
+): void {
+  if (c <= 0 || omega === 0) {
+    return;
+  }
+  stampConductanceAc(stamp, p, n, 0, omega * c);
+}

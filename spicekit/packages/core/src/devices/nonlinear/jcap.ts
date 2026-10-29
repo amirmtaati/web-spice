@@ -40,6 +40,11 @@ function resolveRef(env: DeviceEnv, ref: CapRef): number {
   return (ref.arr === "branches" ? env.branches : env.nodes)[ref.pos] as number;
 }
 
+/** MNA offset of a capacitor terminal reference (ground = −1). */
+export function resolveCapRef(env: DeviceEnv, ref: CapRef): number {
+  return resolveRef(env, ref);
+}
+
 function refPotential(env: DeviceEnv, ref: CapRef): number {
   const k = resolveRef(env, ref);
   return k === -1 ? 0 : (env.x[k] as number);

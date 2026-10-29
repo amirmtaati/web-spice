@@ -20,8 +20,8 @@
 
 import { EngineError } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
-import type { Device, DeviceEnv, MatrixStamp } from "./base.ts";
-import { nodePotential, stampConductance } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
+import { nodePotential, stampConductance, stampConductanceAc } from "./base.ts";
 
 // Slot 0: switch state (1 = on, 0 = off). Slot 1: initialized flag — the
 // state store is zero-filled, so an explicit flag carries the card's ON/OFF
@@ -130,6 +130,14 @@ function buildSwitch(ce: CompiledElement): Device {
       const initialized = (env.state[env.stateBase + 1] as number) > 0.5;
       const on = initialized ? (env.state[env.stateBase] as number) > 0.5 : initialOn;
       stampConductance(stamp, p, n, conductanceAt(model, c, on));
+    },
+    stampAc(stamp: AcStamp, env: DeviceEnv, _omega: number): void {
+      // Small-signal: a plain conductance at the OP state (hard switches)
+      // or the smooth-interpolation conductance at the OP control value.
+      const c = controlValue(env);
+      const initialized = (env.state[env.stateBase + 1] as number) > 0.5;
+      const on = initialized ? (env.state[env.stateBase] as number) > 0.5 : initialOn;
+      stampConductanceAc(stamp, p, n, conductanceAt(model, c, on), 0);
     },
   };
 }

@@ -30,8 +30,8 @@
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs, BOLTZMANN, CHARGE, celsiusToKelvin, exp } from "../math/index.ts";
-import type { Device, DeviceEnv, MatrixStamp } from "./base.ts";
-import { branchVoltage, stampConductance } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
+import { branchVoltage, stampConductance, stampConductanceAc } from "./base.ts";
 import { JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
   type DiodeJunction,
@@ -172,6 +172,16 @@ export function diodeDevice(ce: CompiledElement, options: SimOptions): Device {
       if (cDif > 0) {
         dCap.stampTran(stamp, env, h, method, cDif);
       }
+    },
+    stampAc(stamp: AcStamp, env: DeviceEnv, omega: number): void {
+      // Small-signal at the OP: composite conductance at the stored junction
+      // voltage, junction+diffusion capacitance at the terminal voltage.
+      const vj = env.state[env.stateBase + VJ] as number;
+      const { g } = compositeStampAt(vj);
+      const v = branchVoltage(env, 0, 1);
+      const cDep = depletionCapacitance(v, capModel);
+      const cDif = diffusionCapacitance(v, tt, junction);
+      stampConductanceAc(stamp, p, n, g, omega * (cDep + cDif));
     },
     accept(env: DeviceEnv): void {
       const v = branchVoltage(env, 0, 1);
