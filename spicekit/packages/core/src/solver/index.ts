@@ -1,6 +1,8 @@
 /**
  * Linear solver facade (SPEC §5.4). Stage 1 is the dense LU; the sparse LU
  * (Markowitz/AMD ordering, Gilbert-Peierls, symbolic factorization reused
- * across Newton iterations) arrives with E4 behind this same facade.
+ * across Newton iterations) arrives with E4 behind this same facade. E3 adds
+ * the complex LU behind `luFactorC`/`luSolveC` for `.ac`/`.noise`.
  */
+export { luFactorC, luSolveC } from "./complex.ts";
 export { type LuFactors, luFactor, luSolve } from "./lu.ts";
