@@ -12,6 +12,7 @@ import { capacitorDevice } from "./capacitor.ts";
 import { dependentDevice } from "./dependent.ts";
 import { diodeDevice } from "./diode.ts";
 import { inductorDevice } from "./inductor.ts";
+import { mosfetDevice } from "./mosfet.ts";
 import { mutualDevice } from "./mutual.ts";
 import { resistorDevice } from "./resistor.ts";
 import { sourceDevice } from "./sources.ts";
@@ -65,6 +66,7 @@ function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | unde
     case "Q":
       return bjtDevice(ce, compiled.options);
     case "M":
+      return mosfetDevice(ce, compiled.options);
     case "J":
     case "S":
     case "W":

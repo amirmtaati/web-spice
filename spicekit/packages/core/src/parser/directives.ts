@@ -146,12 +146,19 @@ function parseModel(card: LexCard, acc: ParseAccumulator): void {
   if (nameTok === undefined || typeTok === undefined) {
     throw new FAIL(".model expects .model name type (params)", card.startLine, 1);
   }
-  const model: ModelCard = { name: nameTok.text, type: typeTok.text.toLowerCase(), parameters: {} };
-  // Join remaining tokens and strip a wrapping (...) group.
-  const rest = card.tokens
-    .slice(3)
-    .map((t) => t.text)
-    .join(" ");
+  // The lexer keeps "type(param=..." glued into one token (waveform syntax
+  // relies on that), so split the parameter group back off the type token.
+  const typeRaw = typeTok.text;
+  let modelType = typeRaw;
+  let head = "";
+  const paren = typeRaw.indexOf("(");
+  if (paren >= 0) {
+    modelType = typeRaw.slice(0, paren);
+    head = typeRaw.slice(paren);
+  }
+  const model: ModelCard = { name: nameTok.text, type: modelType.toLowerCase(), parameters: {} };
+  // Join the parameter group and strip a wrapping (...) if present.
+  const rest = [head, ...card.tokens.slice(3).map((t) => t.text)].join(" ").trim();
   const inner = rest.startsWith("(") && rest.endsWith(")") ? rest.slice(1, -1) : rest;
   for (const piece of inner.split(/[\s,]+/)) {
     if (piece.length === 0) {
