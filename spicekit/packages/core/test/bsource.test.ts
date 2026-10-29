@@ -244,11 +244,12 @@ describe("B sources — AC linearization", () => {
   });
 
   test("nonlinear B linearizes to the derivative at the bias point", () => {
-    // f = 1 − (v−1)² has the exact root v = 0 (reached from x = 0);
-    // ∂f/∂v = −2(v−1) = 2 at the root. Closed loop: v = 2v + vac →
-    // |v| = |vac| with phase 180°.
+    // f = 1 − (v(out)−1)² + 0.1·v(in): root at v(out) = 0 (from x = 0);
+    // ∂f/∂v(out) = −2(v−1) = 2 and ∂f/∂v(in) = 0.1 at the root.
+    // Linearized AC: v_out = 2·v_out + 0.1·v_in → v_out = −0.1·v_in.
     const c = circuit([
-      { type: "B", name: "B1", n: ["out", "0"], kind: "V", expr: "1 - (v(out) - 1)^2" },
+      { type: "V", name: "Vin", n: ["in", "0"], dc: 0, ac: { mag: 1 } },
+      { type: "B", name: "B1", n: ["out", "0"], kind: "V", expr: "1 - (v(out) - 1)^2 + 0.1*v(in)" },
       { type: "R", name: "RL", n: ["out", "0"], value: 1e9 },
     ]);
     const compiled = compile(c);
@@ -261,7 +262,7 @@ describe("B sources — AC linearization", () => {
       fstart: 100,
       fstop: 100,
     });
-    expect(sig(r, "vm(out)")).toBeCloseTo(1, 6);
+    expect(sig(r, "vm(out)")).toBeCloseTo(0.1, 8);
     expect(Math.abs(Math.abs(sig(r, "vp(out)")) - 180)).toBeLessThan(1e-4);
   });
 });
