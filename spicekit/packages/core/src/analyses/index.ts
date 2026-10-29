@@ -87,6 +87,11 @@ function signalNamesFor(ws: Workspace): string[] {
     names.push(`v(${node.toLowerCase()})`);
   }
   for (const owner of ws.compiled.branchOwners) {
+    // Device-internal KCL nodes (BJT b'/c'/e') are solver bookkeeping,
+    // not probeable currents.
+    if (owner.includes("#internal")) {
+      continue;
+    }
     names.push(`i(${owner.toLowerCase()})`);
   }
   return names;

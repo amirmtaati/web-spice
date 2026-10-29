@@ -51,6 +51,16 @@ export interface JunctionConduction {
 const E = Math.E;
 
 /**
+ * Hard ceiling for the exponential argument inside diodeConduction. In the
+ * sane operating region (|v| ≲ 1 V) the argument stays below ~40 and the cap
+ * is unreachable; it only engages when an un-limited iterate (e.g. during an
+ * internal reconstruction) would otherwise overflow exp to Infinity and turn
+ * downstream Jacobian determinants into NaN (∞ − ∞). e^300 ≈ 1.9e130 is far
+ * past any physical current, so the cap never alters a converged answer.
+ */
+const EXP_ARG_MAX = 300;
+
+/**
  * Shockley junction with ngspice reverse-generation and matched-knee
  * breakdown. `vte = n·vt` (include the emission coefficient here).
  */
@@ -63,12 +73,13 @@ export function diodeConduction(v: number, d: DiodeJunction): JunctionConduction
     // Matched knee: reverse branch value −Is is reached at −VBX.
     const vbx = d.bv - vteb * ln(Math.max(ibv, d.is) / d.is);
     if (v < -vbx) {
-      const ev = exp(-(v + vbx) / vteb);
+      const arg = Math.min(-(v + vbx) / vteb, EXP_ARG_MAX);
+      const ev = exp(arg);
       return { i: -d.is * ev, g: (d.is / vteb) * ev };
     }
   }
   if (v >= -3 * vte) {
-    const ev = exp(v / vte);
+    const ev = exp(Math.min(v / vte, EXP_ARG_MAX));
     return { i: d.is * (ev - 1), g: (d.is / vte) * ev };
   }
   // ngspice generation current: −Is·(1 + (3·vte/(e·v))³), finite slope.

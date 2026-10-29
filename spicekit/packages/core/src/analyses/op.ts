@@ -84,6 +84,12 @@ function isConverged(
   for (let i = 0; i < a.length; i++) {
     const av = a[i] as number;
     const bv = b[i] as number;
+    // A non-finite iterate is never converged (NaN slips through every
+    // numeric comparison — it must fail loudly so the ladder reports
+    // E_NO_CONVERGENCE instead of returning a poisoned "solution").
+    if (!Number.isFinite(av) || !Number.isFinite(bv)) {
+      return false;
+    }
     const tol =
       options.reltol * Math.max(Math.abs(av), Math.abs(bv)) +
       (i < nodeCount ? options.vntol : options.abstol);

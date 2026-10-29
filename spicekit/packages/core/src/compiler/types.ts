@@ -23,6 +23,12 @@ export interface CompiledElement {
   l?: number;
   /** Own branch-current unknown (V/L/E/H), as an absolute MNA offset. */
   branch?: number;
+  /**
+   * Multiple MNA unknowns owned by one element (BJT internal b'/c'/e'
+   * nodes when RB/RC/RE > 0), as absolute MNA offsets. These rows carry
+   * KCL equations, not voltage branches (SPEC §5.7, ngspice-44 structure).
+   */
+  branches?: number[];
   /** F/H/W: branch offset of the controlling V source. */
   controlBranch?: number;
   controlName?: string;

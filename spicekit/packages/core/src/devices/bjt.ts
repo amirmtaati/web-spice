@@ -2,9 +2,15 @@
  * BJT (SPEC §5.7): SPICE2 Gummel-Poon reduced to its Ebers-Moll core —
  * transport formulation with the Early-effect base-charge factor q1, NPN/PNP
  * via voltage mirroring, junction + diffusion capacitance, gmin on both
- * junctions, and pnjlim limiting on vbe/vbc. Ohmic RB/RC/RE fold into the
- * terminal stamp through the exact composite linearization (the internal
- * prime-node system solved in place; see solveComposite below).
+ * junctions, and pnjlim limiting on vbe/vbc.
+ *
+ * Parasitic RB/RC/RE are modeled with real internal MNA nodes (b', c', e')
+ * — one branch unknown per positive resistance, allocated by the compiler
+ * (ngspice-44 structure). The junctions stamp between the prime nodes, the
+ * resistors stamp terminal→prime, and the limiter reads the junction
+ * voltages directly from the solution vector. This replaces the earlier
+ * folded-composite formulation, whose 2×2 reconstruction Newton was
+ * ill-conditioned from cold starts (determinant cancellation → NaN).
  *
  * Equations follow ngspice bjtload.c (defaults: ISE=ISC=IKF=IKR=0):
  *
@@ -17,12 +23,16 @@
  *   go  = (gbc + (cbe − cbc)·q1²·invVAF)/q1
  *   gm  = (gbe − (cbe − cbc)·q1²·invVAR)/q1 − go
  *
- * Terminal stamp (t = ±1 for npn/pnp; identical Jacobian both polarities):
+ * Prime-node stamp (t = ±1 for npn/pnp; identical Jacobian both polarities):
  *   gBB = grf+grr  gBC = −grr  gBE = −grf          (base row)
  *   gCB = gff+gfr  gCC = −gfr  gCE = −gff          (collector row)
  *   gEk = −(gBk + gCk)                             (emitter = −B − C)
  *   iB0 = t·cb   iC0 = t·cc   iE0 = −t·(cb + cc)
  *   A[k][j] += gKj;  b[k] += −(iK0 − Σ_j gKj·v0_j)
+ *
+ * The row sums of the Jacobian block are zero, so the choice of anchor
+ * offset is free: anchoring the emitter at the iterate's e' potential is
+ * exactly ngspice's ceq form.
  *
  * PNP mirrors voltages (vbe ← −vbe) and negates the currents; the chain
  * rule leaves the Jacobian stamps unchanged — exactly ngspice's structure.
@@ -35,8 +45,8 @@ import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
 import type { Device, DeviceEnv, MatrixStamp } from "./base.ts";
-import { nodePotential } from "./base.ts";
-import { JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
+import { stampConductance } from "./base.ts";
+import { type CapRef, JunctionCap, VC_SLOTS } from "./nonlinear/jcap.ts";
 import {
   depletionCapacitance,
   diffusionCapacitance,
@@ -46,9 +56,8 @@ import {
 } from "./nonlinear/junction.ts";
 import { junctionVcrit, pnjlim } from "./nonlinear/limiting.ts";
 
-// State: vbe/vbc (internal, npn-reference) used in the last stamp, then one
-// cap block each for BE junction, BE diffusion (TF), BC junction, BC
-// diffusion (TR).
+// State: vbe/vbc (npn-reference) used in the last stamp, then one cap block
+// each for BE junction, BE diffusion (TF), BC junction, BC diffusion (TR).
 const VBE0 = 0;
 const VBC0 = 1;
 const CBE_OFF = 2;
@@ -74,9 +83,6 @@ interface BjtSolution {
 
 export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
   // Element node order: [collector, base, emitter] (SPICE Qxxx C B E model).
-  const cNode = ce.nodes[0] as number;
-  const bNode = ce.nodes[1] as number;
-  const eNode = ce.nodes[2] as number;
   const mp = ce.modelParams ?? {};
   const area = ce.area ?? 1;
 
@@ -108,15 +114,24 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
   const invVrb = Number.isFinite(vrb) ? 1 / vrb : 0;
   const vcrit = junctionVcrit(vt, is);
   const gmin = options.gmin;
-  const hasR = rb > 0 || rc > 0 || re > 0;
+  const hasRb = rb > 0;
+  const hasRc = rc > 0;
+  const hasRe = re > 0;
 
   const beCapModel: JunctionCapacitance = { cj0: cje, vj: vje, m: mje, fc };
   const bcCapModel: JunctionCapacitance = { cj0: cjc, vj: vjc, m: mjc, fc };
-  // Cap positions inside env.nodes = [collector, base, emitter].
-  const beCap = new JunctionCap("cbe", 1, 2, CBE_OFF);
-  const beDif = new JunctionCap("cbe-dif", 1, 2, CBE_DIF_OFF);
-  const bcCap = new JunctionCap("cbc", 1, 0, CBC_OFF);
-  const bcDif = new JunctionCap("cbc-dif", 1, 0, CBC_DIF_OFF);
+
+  // Terminal references for the caps: prime nodes when the corresponding
+  // resistor exists (compiler allocates branch unknowns in [rb, rc, re]
+  // order), element terminals otherwise. Element node order is
+  // [collector, base, emitter] = env.nodes positions [0, 1, 2].
+  const bRef: CapRef = hasRb ? { arr: "branches", pos: 0 } : 1;
+  const cRef: CapRef = hasRc ? { arr: "branches", pos: hasRb ? 1 : 0 } : 0;
+  const eRef: CapRef = hasRe ? { arr: "branches", pos: (hasRb ? 1 : 0) + (hasRc ? 1 : 0) } : 2;
+  const beCap = new JunctionCap("cbe", bRef, eRef, CBE_OFF);
+  const beDif = new JunctionCap("cbe-dif", bRef, eRef, CBE_DIF_OFF);
+  const bcCap = new JunctionCap("cbc", bRef, cRef, CBC_OFF);
+  const bcDif = new JunctionCap("cbc-dif", bRef, cRef, CBC_DIF_OFF);
 
   /** DC junction solution at internal (vbe, vbc) — npn reference. */
   const solveDc = (vbe: number, vbc: number): BjtSolution => {
@@ -136,95 +151,6 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
     return { cc, cb, gpi, gmu, go, gm };
   };
 
-  interface Composite {
-    s: BjtSolution;
-    gff: number; // ∂ic/∂vbe  (terminal, composite)
-    gfr: number; // ∂ic/∂vbc
-    grf: number; // ∂ib/∂vbe
-    grr: number; // ∂ib/∂vbc
-    vbeInt: number;
-    vbcInt: number;
-  }
-
-  /**
-   * Solve the BJT at terminal voltages (vbe, vbc) with ohmic RB/RC/RE.
-   * Without resistors this is solveDc directly. With them, the internal
-   * junction voltages obey v_int = v − M·i with
-   *   M = [[RE, RB+RE], [−RC, RB]]  wrt (ic, ib),
-   * solved by Newton on h(z) = z + M·F(z) − v (2×2 system, positive-definite
-   * for physical parameters — emitter degeneration only strengthens the
-   * diagonal), then the exact terminal Jacobian is (I + Gf·M)⁻¹·Gf.
-   */
-  const solveComposite = (
-    vbe: number,
-    vbc: number,
-    seedVbe: number,
-    seedVbc: number,
-  ): Composite => {
-    if (!hasR) {
-      const s = solveDc(vbe, vbc);
-      return {
-        s,
-        gff: s.gm + s.go,
-        gfr: -(s.gmu + s.go),
-        grf: s.gpi,
-        grr: s.gmu,
-        vbeInt: vbe,
-        vbcInt: vbc,
-      };
-    }
-    let zbe = seedVbe;
-    let zbc = seedVbc;
-    let s = solveDc(zbe, zbc);
-    for (let k = 0; k < 4; k++) {
-      s = solveDc(zbe, zbc);
-      const gff = s.gm + s.go;
-      const gfr = -(s.gmu + s.go);
-      const grf = s.gpi;
-      const grr = s.gmu;
-      // h = z + M·i(z) − v
-      const h1 = zbe + re * s.cc + (rb + re) * s.cb - vbe;
-      const h2 = zbc - rc * s.cc + rb * s.cb - vbc;
-      // Jh = I + Gf·M
-      const a11 = 1 + gff * re - gfr * rc;
-      const a12 = gff * (rb + re) + gfr * rb;
-      const a21 = grf * re - grr * rc;
-      const a22 = 1 + grf * (rb + re) + grr * rb;
-      const det = a11 * a22 - a12 * a21;
-      const invDet = 1 / det;
-      const d1 = (a22 * h1 - a12 * h2) * invDet;
-      const d2 = (-a21 * h1 + a11 * h2) * invDet;
-      zbe -= d1;
-      zbc -= d2;
-    }
-    s = solveDc(zbe, zbc);
-    const gff = s.gm + s.go;
-    const gfr = -(s.gmu + s.go);
-    const grf = s.gpi;
-    const grr = s.gmu;
-    // G_eff = (I + Gf·M)⁻¹·Gf via the adjugate.
-    const a11 = 1 + gff * re - gfr * rc;
-    const a12 = gff * (rb + re) + gfr * rb;
-    const a21 = grf * re - grr * rc;
-    const a22 = 1 + grf * (rb + re) + grr * rb;
-    const det = a11 * a22 - a12 * a21;
-    const invDet = 1 / det;
-    // (I+GfM)⁻¹ = adj/det; G_eff rows = (adj·Gf)/det.
-    const j11 = a22 * invDet;
-    const j12 = -a12 * invDet;
-    const j21 = -a21 * invDet;
-    const j22 = a11 * invDet;
-    return {
-      s,
-      gff: j11 * gff + j12 * grf,
-      gfr: j11 * gfr + j12 * grr,
-      grf: j21 * gff + j22 * grf,
-      grr: j21 * gfr + j22 * grr,
-      vbeInt: zbe,
-      vbcInt: zbc,
-    };
-  };
-
   /** Charge present at (vbe, vbc) for the four cap groups (F). */
   const capValues = (vbe: number, vbc: number): [number, number, number, number] => {
     const cBe = depletionCapacitance(vbe, beCapModel);
@@ -235,64 +161,66 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
   };
 
   /**
-   * Stamp from the stored (limited) internal junction voltages: evaluate the
-   * Ebers-Moll solution there, compute the exact terminal Jacobian, and
-   * anchor the Newton source at the self-consistent terminal point. The
-   * common-offset freedom of the anchor is absorbed by the zero row sums of
-   * the terminal Jacobian — using the iterate's emitter potential as the
-   * reference is exactly equivalent to ngspice's ceq form.
+   * MNA offsets of the (possibly internal) prime nodes, plus the terminals.
+   * Branch order from the compiler: [rb → b', rc → c', re → e'] filtered.
+   */
+  const offsets = (
+    env: DeviceEnv,
+  ): { b: number; c: number; e: number; bt: number; ct: number; et: number } => {
+    let bi = 0;
+    const b = hasRb ? (env.branches[bi++] as number) : (env.nodes[1] as number);
+    const c = hasRc ? (env.branches[bi++] as number) : (env.nodes[0] as number);
+    const e = hasRe ? (env.branches[bi] as number) : (env.nodes[2] as number);
+    return {
+      b,
+      c,
+      e,
+      bt: env.nodes[1] as number,
+      ct: env.nodes[0] as number,
+      et: env.nodes[2] as number,
+    };
+  };
+
+  const xAt = (env: DeviceEnv, k: number): number => (k === -1 ? 0 : (env.x[k] as number));
+
+  /** Parasitic resistor stamps terminal → prime node. */
+  const stampResistors = (stamp: MatrixStamp, env: DeviceEnv): void => {
+    if (hasRb) {
+      stampConductance(stamp, env.nodes[1] as number, env.branches[0] as number, 1 / rb);
+    }
+    if (hasRc) {
+      const ci = hasRb ? 1 : 0;
+      stampConductance(stamp, env.nodes[0] as number, env.branches[ci] as number, 1 / rc);
+    }
+    if (hasRe) {
+      const ei = (hasRb ? 1 : 0) + (hasRc ? 1 : 0);
+      stampConductance(stamp, env.nodes[2] as number, env.branches[ei] as number, 1 / re);
+    }
+  };
+
+  /**
+   * Stamp from the stored (limited) junction voltages: evaluate the
+   * Ebers-Moll solution there and anchor the Newton source at the
+   * state-consistent prime-node potentials. The zero row sums of the
+   * Jacobian block absorb the anchor's common offset — using the iterate's
+   * e' potential as the reference is exactly ngspice's ceq form.
    */
   const stampFromState = (stamp: MatrixStamp, env: DeviceEnv): void => {
-    const vbeInt = env.state[env.stateBase + VBE0] as number;
-    const vbcInt = env.state[env.stateBase + VBC0] as number;
-    const s = solveDc(vbeInt, vbcInt);
+    const vbe0 = env.state[env.stateBase + VBE0] as number;
+    const vbc0 = env.state[env.stateBase + VBC0] as number;
+    const s = solveDc(vbe0, vbc0);
     const gff = s.gm + s.go;
     const gfr = -(s.gmu + s.go);
     const grf = s.gpi;
     const grr = s.gmu;
-    let gEffFf = gff;
-    let gEffFr = gfr;
-    let gEffRf = grf;
-    let gEffRr = grr;
-    // Terminal anchors: with R, back out the ohmic drops from the internal
-    // point; v* = v_int + M·i evaluated at the junction currents.
-    const vbeAnchor = vbeInt + re * s.cc + (rb + re) * s.cb;
-    const vbcAnchor = vbcInt - rc * s.cc + rb * s.cb;
-    if (hasR) {
-      const a11 = 1 + gff * re - gfr * rc;
-      const a12 = gff * (rb + re) + gfr * rb;
-      const a21 = grf * re - grr * rc;
-      const a22 = 1 + grf * (rb + re) + grr * rb;
-      const invDet = 1 / (a11 * a22 - a12 * a21);
-      const j11 = a22 * invDet;
-      const j12 = -a12 * invDet;
-      const j21 = -a21 * invDet;
-      const j22 = a11 * invDet;
-      gEffFf = j11 * gff + j12 * grf;
-      gEffFr = j11 * gfr + j12 * grr;
-      gEffRf = j21 * gff + j22 * grf;
-      gEffRr = j21 * gfr + j22 * grr;
-    }
-    // Terminal potentials implied by the anchored internal point (type
-    // mirrors npn-reference differences onto physical terminals).
-    const vE = nodePotential(env, 2);
-    const vB = vE + type * vbeAnchor;
-    const vC = vB - type * vbcAnchor;
-    stampBjtTerminals(
-      stamp,
-      bNode,
-      cNode,
-      eNode,
-      type,
-      s,
-      gEffFf,
-      gEffFr,
-      gEffRf,
-      gEffRr,
-      vB,
-      vC,
-      vE,
-    );
+    const o = offsets(env);
+    // Anchor at the iterate's e' potential; type mirrors npn-reference
+    // differences onto physical prime-node potentials.
+    const vE = xAt(env, o.e);
+    const vB = vE + type * vbe0;
+    const vC = vB - type * vbc0;
+    stampBjtTerminals(stamp, o.b, o.c, o.e, type, s, gff, gfr, grf, grr, vB, vC, vE);
+    stampResistors(stamp, env);
   };
 
   return {
@@ -302,26 +230,13 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
       stampFromState(stamp, env);
     },
     limit(env: DeviceEnv): boolean {
-      const vB = nodePotential(env, 1);
-      const vC = nodePotential(env, 0);
-      const vE = nodePotential(env, 2);
-      const vbeTerm = type * (vB - vE);
-      const vbcTerm = type * (vB - vC);
-      // Reconstruct the internal junction voltages (no-op without RB/RC/RE).
-      let vbeNew = vbeTerm;
-      let vbcNew = vbcTerm;
-      if (hasR) {
-        const j = solveComposite(
-          vbeTerm,
-          vbcTerm,
-          env.state[env.stateBase + VBE0] as number,
-          env.state[env.stateBase + VBC0] as number,
-        );
-        vbeNew = j.vbeInt;
-        vbcNew = j.vbcInt;
-      }
-      const rbe = pnjlim(vbeNew, env.state[env.stateBase + VBE0] as number, vt, vcrit);
-      const rbc = pnjlim(vbcNew, env.state[env.stateBase + VBC0] as number, vt, vcrit);
+      // The junction voltages are MNA unknowns (prime nodes) — read them
+      // from the solution directly; no reconstruction of any kind.
+      const o = offsets(env);
+      const vbeTerm = type * (xAt(env, o.b) - xAt(env, o.e));
+      const vbcTerm = type * (xAt(env, o.b) - xAt(env, o.c));
+      const rbe = pnjlim(vbeTerm, env.state[env.stateBase + VBE0] as number, vt, vcrit);
+      const rbc = pnjlim(vbcTerm, env.state[env.stateBase + VBC0] as number, vt, vcrit);
       env.state[env.stateBase + VBE0] = rbe.v;
       env.state[env.stateBase + VBC0] = rbc.v;
       return rbe.limited || rbc.limited;
@@ -372,12 +287,11 @@ export function bjtDevice(ce: CompiledElement, options: SimOptions): Device {
 }
 
 /**
- * Stamp the linearized terminal currents anchored at the limited point:
+ * Stamp the linearized prime-node currents anchored at the limited point:
  *   i_k(v) ≈ iK0 + Σ_j gKj·(v_j − v_j0)
  * The Jacobian rows are identical for NPN/PNP (chain rule under voltage
  * mirroring); only the current constants flip with `type`. (vB, vC, vE) is
- * the anchor point — the self-consistent terminal voltages of the limited
- * internal state.
+ * the anchor point — the state-consistent prime-node potentials.
  */
 function stampBjtTerminals(
   stamp: MatrixStamp,

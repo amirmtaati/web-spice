@@ -14,6 +14,12 @@ import { type Circuit, type Element, EngineError } from "@spicekit/protocol";
 
 import { ParamScope, resolveExpr } from "../eval/index.ts";
 import {
+  builtinModel,
+  canonicalModelType,
+  modelTypeMismatch,
+  unknownModelParams,
+} from "../models/index.ts";
+import {
   checkControls,
   checkCouplings,
   checkGroundAndFloating,
@@ -146,6 +152,24 @@ export function compile(ir: Circuit): CompiledCircuit {
           ce.area = el.area;
         }
         resolveModel(ce, ir, scope, warnings);
+        if (el.type === "Q") {
+          // Parasitic RB/RC/RE get real internal MNA nodes (b', c', e') so
+          // the junction limiting sees the actual junction voltages — the
+          // folded-composite alternative is ill-conditioned for the coupled
+          // 2×2 BJT system (SPEC §5.7, ngspice-44 internal-node structure).
+          const mp = ce.modelParams ?? {};
+          const rs = [mp.rb ?? 0, mp.rc ?? 0, mp.re ?? 0];
+          if (rs.some((r) => r > 0)) {
+            const owned: number[] = [];
+            for (const r of rs) {
+              if (r > 0) {
+                owned.push(branchCount0(branchOwners));
+                branchOwners.push(`${el.name}#internal${owned.length}`);
+              }
+            }
+            ce.branches = owned;
+          }
+        }
         break;
       }
       case "M": {
@@ -225,6 +249,9 @@ export function compile(ir: Circuit): CompiledCircuit {
     if (ce.branch !== undefined) {
       ce.branch += nodeTotal;
     }
+    if (ce.branches !== undefined) {
+      ce.branches = ce.branches.map((b) => b + nodeTotal);
+    }
     if ((ce.type === "F" || ce.type === "H" || ce.type === "W") && ce.controlBranch !== undefined) {
       ce.controlBranch += nodeTotal;
     }
@@ -240,7 +267,8 @@ function branchCount0(owners: string[]): number {
  * Resolve the `.model` card for a model-backed element (D/Q/M/J/S/W) into
  * numeric parameters (SPEC §5.2 "resolved model parameters"). String param
  * values are expressions evaluated against the parameter scope. The model
- * reference itself is validated by checkModelRefs.
+ * reference itself is validated by checkModelRefs (netlist cards and
+ * built-in library cards both satisfy it; the netlist card wins).
  */
 function resolveModel(
   ce: CompiledElement,
@@ -249,13 +277,24 @@ function resolveModel(
   warnings: CompileWarning[],
 ): void {
   const el = ce.element as Extract<Element, { model: string }>;
-  const model = ir.models[el.model.toLowerCase()];
-  if (model === undefined) {
+  const card = ir.models[el.model.toLowerCase()] ?? builtinModel(el.model);
+  if (card === undefined) {
     return; // checkModelRefs already reported E_UNKNOWN_MODEL
   }
-  ce.modelType = model.type;
+  const mismatch = modelTypeMismatch(el.type, card.type);
+  if (mismatch !== undefined) {
+    throw new EngineError({
+      code: "E_BAD_MODEL",
+      message: `${el.name}: ${mismatch}`,
+      location: { elementName: el.name },
+    });
+  }
+  // Canonical type (long spellings like "diode" normalize to "d") — the
+  // devices and the parameter schema key on the canonical form.
+  const canon = canonicalModelType(card.type) ?? card.type;
+  ce.modelType = canon;
   const params: Record<string, number> = {};
-  for (const [key, raw] of Object.entries(model.parameters)) {
+  for (const [key, raw] of Object.entries(card.parameters)) {
     if (typeof raw === "number") {
       params[key.toLowerCase()] = raw;
     } else {
@@ -269,6 +308,15 @@ function resolveModel(
         });
       }
     }
+  }
+  // Unknown parameter names are almost always typos that would otherwise
+  // silently fall back to device defaults (model library schema, SPEC §5.2).
+  for (const key of unknownModelParams(canon, card.parameters)) {
+    warnings.push({
+      code: "W_MODEL_PARAM_UNKNOWN",
+      message: `${el.name}: model "${card.name}" has no parameter "${key}" for type "${card.type}"; ignored`,
+      elementName: el.name,
+    });
   }
   ce.modelParams = params;
 }

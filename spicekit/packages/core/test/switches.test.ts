@@ -16,7 +16,6 @@ const SW: ModelCard = {
   type: "sw",
   parameters: { ron: 1, roff: 1e12, vt: 1, vh: 0.2 },
 };
-const SW_HARD: ModelCard = { name: "swh", type: "sw", parameters: { ron: 10, roff: 1e9, vt: 2 } };
 const SW_SMOOTH: ModelCard = {
   name: "sws",
   type: "sw",

@@ -67,7 +67,7 @@ export class Workspace implements MatrixStamp {
         continue;
       }
       this.deviceNodes.push([...ce.nodes]);
-      const branches = ce.branch !== undefined ? [ce.branch] : [];
+      const branches = ce.branches ?? (ce.branch !== undefined ? [ce.branch] : []);
       this.deviceBranches.push(branches);
       this.stateBases.set(d.name.toLowerCase(), slots);
       slots += d.stateSlots;

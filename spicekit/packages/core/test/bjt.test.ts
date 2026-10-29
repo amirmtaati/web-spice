@@ -260,3 +260,73 @@ VIN in 0 SIN(0 0.01 1000)
     expect(bias).toBeLessThan(8);
   });
 });
+
+describe("bjt — parasitic resistances (internal prime nodes)", () => {
+  test("cold-start convergence with RB/RC/RE via internal nodes", () => {
+    // This bias circuit drove the old folded-composite formulation into
+    // determinant cancellation (NaN); with real b'/c'/e' MNA nodes it must
+    // converge directly to the textbook bias point.
+    const netlist = `Internal-node BJT bias
+VCC cc 0 12
+RB cc b 470k
+RC cc c 2k
+Q1 c b 0 qpar
+.model qpar npn(is=1e-15 bf=200 br=3 vaf=100 rb=100 rc=50 re=2)
+.end`;
+    const { results } = simulateNetlist(netlist);
+    const op = results[0] as ReturnType<typeof runAnalysis>;
+    const vB = op.signals.find((s) => s.name === "v(b)")?.values[0] as number;
+    const vC = op.signals.find((s) => s.name === "v(c)")?.values[0] as number;
+    // Textbook bias: IB ≈ (12 − vBE)/470k ≈ 24 µA, IC ≈ β·IB ≈ 4.8 mA.
+    expect(vB).toBeGreaterThan(0.6);
+    expect(vB).toBeLessThan(0.9);
+    const iC = (12 - vC) / 2e3;
+    const iB = (12 - vB) / 470e3;
+    // β = bf = 200, within a few percent (Early effect stretches it slightly).
+    expect(Math.abs(iC / iB - 200) / 200).toBeLessThan(0.05);
+  });
+
+  test("partial resistors (RB only, RC=RE=0) allocate exactly one prime node", () => {
+    const netlist = `Base spreading only
+VCC cc 0 5
+RC cc c 1k
+Q1 c b 0 qrb
+VB b 0 0.75
+.model qrb npn(is=1e-14 bf=100 rb=200)
+.end`;
+    const { results } = simulateNetlist(netlist);
+    const op = results[0] as ReturnType<typeof runAnalysis>;
+    const vC = op.signals.find((s) => s.name === "v(c)")?.values[0] as number;
+    // VB = 0.75 V drives the base hard: β·IB far exceeds 5 mA of RC current
+    // → deep saturation, vC ≈ VCE_sat (well under 0.3 V).
+    expect(vC).toBeGreaterThan(0.01);
+    expect(vC).toBeLessThan(0.3);
+    expect(Number.isFinite(vC)).toBe(true);
+  });
+
+  test("transient with RB/RC/RE prime nodes: CE stage still amplifies", () => {
+    const netlist = `Prime-node transient
+VCC vcc 0 12
+R1 vcc b 47k
+R2 b 0 10k
+RC vcc c 1k
+RE e 0 220
+CIN in b 10u
+COUT c out 10u
+Q1 c b e qpar
+RL out 0 10k
+.model qpar npn(is=1e-14 bf=100 br=1 vaf=100 rb=200 rc=30 re=1)
+VIN in 0 SIN(0 0.01 1000)
+.tran 20u 6m
+.end`;
+    const { results } = simulateNetlist(netlist);
+    const tran = results[0] as ReturnType<typeof runAnalysis>;
+    const vOut = tran.signals.find((s) => s.name === "v(out)")?.values as Float64Array;
+    expect(vOut).toBeDefined();
+    let peak = 0;
+    for (let i = Math.floor(vOut.length / 2); i < vOut.length; i++) {
+      peak = Math.max(peak, Math.abs(vOut[i] as number));
+    }
+    expect(peak).toBeGreaterThan(0.02);
+  });
+});

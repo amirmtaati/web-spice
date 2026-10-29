@@ -22,9 +22,28 @@
 
 import { abs } from "../../math/index.ts";
 import type { DeviceEnv, IntegrationMethod, MatrixStamp } from "../base.ts";
-import { branchVoltage, stampConductance } from "../base.ts";
+import { stampConductance } from "../base.ts";
 
 export const VC_SLOTS = 7;
+
+/**
+ * Terminal reference for a capacitor: a plain number is a position inside
+ * `env.nodes` (the element's terminals); `{arr: "branches", pos}` addresses
+ * an internal MNA node owned by the device (BJT b'/c'/e').
+ */
+export type CapRef = number | { arr: "nodes" | "branches"; pos: number };
+
+function resolveRef(env: DeviceEnv, ref: CapRef): number {
+  if (typeof ref === "number") {
+    return env.nodes[ref] as number;
+  }
+  return (ref.arr === "branches" ? env.branches : env.nodes)[ref.pos] as number;
+}
+
+function refPotential(env: DeviceEnv, ref: CapRef): number {
+  const k = resolveRef(env, ref);
+  return k === -1 ? 0 : (env.x[k] as number);
+}
 
 // Slot offsets inside one capacitor's state block.
 const V0 = 0;
@@ -38,16 +57,16 @@ const CNT = 6;
 export class JunctionCap {
   constructor(
     readonly name: string,
-    /** Positions of the two terminals inside the device's `env.nodes`. */
-    private readonly pPos: number,
-    private readonly nPos: number,
+    /** Terminal references (positions in env.nodes, or branch refs). */
+    private readonly pRef: CapRef,
+    private readonly nRef: CapRef,
     /** Slot offset inside the owning device's state block. */
     private readonly off: number,
   ) {}
 
   /** Voltage across the cap at the current iterate (v_plus − v_minus). */
   voltage(env: DeviceEnv): number {
-    return branchVoltage(env, this.pPos, this.nPos);
+    return refPotential(env, this.pRef) - refPotential(env, this.nRef);
   }
 
   /** Stamp the companion model for this step with C evaluated at the iterate. */
@@ -59,8 +78,8 @@ export class JunctionCap {
     cap: number,
   ): void {
     const s = env.stateBase + this.off;
-    const p = env.nodes[this.pPos] as number;
-    const n = env.nodes[this.nPos] as number;
+    const p = resolveRef(env, this.pRef);
+    const n = resolveRef(env, this.nRef);
     const v0 = env.state[s + V0] as number;
     const v1 = env.state[s + V1] as number;
     const ip = env.state[s + IP] as number;
