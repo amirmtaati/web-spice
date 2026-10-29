@@ -2,6 +2,81 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## E2 — Nonlinear devices (2026-10-29)
+
+**Status: complete.** D, BJT, MOSFET L1, JFET, switches; Newton with
+junction limiting; the full OP fallback ladder; device model library
+(SPEC §22 E2).
+
+### What landed
+
+- **Diode (D)** (§5.7): Shockley junction, series resistance (anchored
+  composite stamp), ngspice reverse generation current, matched-knee
+  breakdown, junction + diffusion capacitance, area scaling, temperature
+  (XTI/EG), pnjlim limiting.
+- **BJT (Q)** (§5.7): Ebers-Moll transport with Early factor q1, NPN/PNP
+  voltage mirroring, junction/diffusion caps, parasitic RB/RC/RE via real
+  internal MNA nodes (b'/c'/e' — ngspice-44 structure; replaces the
+  ill-conditioned folded-composite reconstruction whose 2×2 Newton hit
+  determinant cancellation → NaN from cold starts).
+- **MOSFET L1 (M)**: Shichman-Hodges square law with bulk threshold,
+  channel-length modulation, Meyer capacitances, bulk junction diodes.
+- **JFET (J)**: square-law with gate-junction diodes, area scaling.
+- **Switches (S/W)**: voltage/current controlled state machines with
+  hysteresis memory, ngspice swload semantics, smooth-transition
+  log-linear conductance option, state-flip-driven re-solves.
+- **Newton with limiting** (§5.5): device `limit` hooks (pnjlim/fetlim/
+  limvds ports of ngspice devsup.c) evaluated before every stamp; `gmin`
+  on every nonlinear branch.
+- **OP fallback ladder** (§5.5): direct Newton → gmin stepping
+  (10 decade stages) → source stepping (10 stages) → pseudo-transient
+  homotopy (per-node BE capacitor, geometric pseudo-time, reltol-steady
+  stop, final plain-Newton validation). ngspice-compatible knobs:
+  `.options noopiter=1`, `gminsteps=`, `srcsteps=` (0 skips a rung).
+  The winning rung is reported in `stats.opMethod`.
+- **Model library** (§5.2): parameter schemas with units/defaults/aliases
+  for d/npn/pnp/nmos/pmos/njf/pjf/sw/csw; long-spelling canonicalization
+  (`diode`→`d`, `vswitch`→`sw`, `iswitch`→`csw`); E_BAD_MODEL on
+  element/type mismatch; W_MODEL_PARAM_UNKNOWN warnings for typo'd card
+  parameters (previously silently ignored); BUILTIN_MODEL_CARDS
+  (d_ideal, d_signal, npn/pnp/njf/pjf_generic, nmos/pmos_5v, nmos_4000,
+  sw_fast, csw_fast) resolvable without a `.model` card — netlist cards
+  win on name collision.
+
+### Verification (SPEC §13)
+
+- **276 tests green** (protocol/core/client/cli). Per-device taxonomy:
+  analytical (hand-derived closed forms), reference (independent
+  bisection/divider arithmetic), property (KCL residuals, monotonicity,
+  polarity symmetry, area/β/Early scaling), convergence (cold starts,
+  state flips, stiff diode chains, 100 V walk).
+- **Acceptance fixtures**: series half-wave rectifier with RC filter,
+  CE amplifier (bias + amplified sine swing), CMOS inverter VTC,
+  3-stage ring oscillator in transient — all pass end-to-end through
+  `simulateNetlist`.
+- **Fallback-ladder hard tests**: bistable CMOS latch cross-rung
+  consistency (all four rungs agree on the operating point);
+  pseudo-transient end-to-end diode bias; an astable switch relaxation
+  circuit with no DC fixed point that exhausts every rung into a named
+  E_NO_CONVERGENCE diagnostic.
+- **NaN hardening**: convergence tests reject non-finite iterates
+  (NaN previously read as converged); diodeConduction caps the
+  exponential argument so no un-limited path can overflow to Infinity.
+- Gates: biome, type-aware ESLint, `tsc -b`, dependency-cruiser
+  (232 modules) — all clean.
+
+### Protocol additions (additive, backward-compatible)
+
+- `SimOptions.noopiter?`, `SimOptions.gminsteps?`, `SimOptions.srcsteps?`
+  (zod-validated, default 10/10 when unset); error code `E_BAD_MODEL`.
+
+### Deferred / next up
+
+- ngspice golden-fixture pipeline (§13.2.2) — infrastructure ready.
+- E3: AC/noise/behavioral (complex solver, `.ac`/`.tf`/`.noise`, B
+  sources with AD, subcircuits, `.measure`).
+
+
 ## 2026-10-29 — P0: Foundations scaffold (partial — files in place)
 
 **Done**
