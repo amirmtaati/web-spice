@@ -84,6 +84,9 @@ export function handleDirective(card: LexCard, acc: ParseAccumulator): void {
     case ".ac":
       target(acc).analyses.push(parseAc(card));
       return;
+    case ".tf":
+      target(acc).analyses.push(parseTf(card));
+      return;
     case ".ic":
       parseIc(card, acc);
       return;
@@ -390,6 +393,33 @@ function parseAc(card: LexCard): AnalysisRequest {
     fstart: parseValue((t[3] as CardToken).text),
     fstop: parseValue((t[4] as CardToken).text),
   };
+}
+
+/** .tf out_spec source — out_spec is v(node[,ref]) or i(source). */
+function parseTf(card: LexCard): AnalysisRequest {
+  const t = card.tokens;
+  if (t.length < 3) {
+    throw new FAIL(".tf expects .tf v(out)|i(src) srcname", card.startLine, 1);
+  }
+  // The output spec may contain a comma (v(a,b)) — the lexer splits on
+  // commas, so rejoin everything up to the source name.
+  const first = (t[1] as CardToken).text.toLowerCase();
+  let output = first;
+  let srcIdx = 2;
+  if (/^v\([^,)]*$/.test(first)) {
+    // "v(a" — the ref node (and closing paren) are in following tokens.
+    const parts: string[] = [first];
+    while (srcIdx < t.length && !(parts[parts.length - 1] as string).includes(")")) {
+      parts.push((t[srcIdx] as CardToken).text);
+      srcIdx += 1;
+    }
+    output = parts.join("");
+  }
+  if (srcIdx >= t.length) {
+    throw new FAIL(".tf is missing the input source name", card.startLine, 1);
+  }
+  const source = (t[srcIdx] as CardToken).text;
+  return { kind: "tf", output, source };
 }
 
 /** .ic v(node)=value — node initial conditions for transient/uic. */

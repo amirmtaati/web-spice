@@ -11,6 +11,7 @@ import { type AcOutcome, acSignals, runAc } from "./ac.ts";
 import { runDcSweep } from "./dc.ts";
 import { runOp } from "./op.ts";
 import type { AnalysisKind, RunResult, SignalSeries } from "./result.ts";
+import { runTf, tfSignals, tfStats } from "./tf.ts";
 import { runTransient } from "./tran.ts";
 import { Workspace } from "./workspace.ts";
 
@@ -42,8 +43,9 @@ export function runAnalysis(
       return runTranAnalysis(ws, opts, request);
     case "ac":
       return runAcAnalysis(ws, request);
-    case "noise":
     case "tf":
+      return runTfAnalysis(ws, request);
+    case "noise":
       throw new EngineError({
         code: "E_NOT_IMPLEMENTED",
         message: `${request.kind} analysis lands with milestone E3 (SPEC §22)`,
@@ -87,6 +89,20 @@ function runAcAnalysis(
       opMethod: outcome.opMethod,
       notes: [],
     },
+  };
+}
+
+function runTfAnalysis(
+  ws: Workspace,
+  request: Extract<AnalysisRequest, { kind: "tf" }>,
+): RunResult {
+  const outcome = runTf(ws, request);
+  return {
+    kind: "tf",
+    axis: new Float64Array([0]),
+    axisName: "tf",
+    signals: tfSignals(outcome),
+    stats: tfStats(outcome),
   };
 }
 
