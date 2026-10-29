@@ -204,10 +204,9 @@ describe("compiler — pre-flight checks", () => {
     ).toThrow(/inductance/);
   });
 
-  test("deferred element types (B/S/X) are explicit E_NOT_IMPLEMENTED", () => {
+  test("deferred element types (B/X) are explicit E_NOT_IMPLEMENTED; S needs a model", () => {
     for (const el of [
       { type: "B", name: "B1", n: ["a", "0"], kind: "V", expr: "1" },
-      { type: "S", name: "S1", n: ["a", "0"], ctrl: ["b", "0"], model: "sw" },
       { type: "X", name: "X1", n: ["a", "0"], subckt: "sub" },
     ] as Element[]) {
       try {
@@ -216,6 +215,18 @@ describe("compiler — pre-flight checks", () => {
       } catch (e) {
         expect((e as { code: string }).code).toBe("E_NOT_IMPLEMENTED");
       }
+    }
+    // S is simulated from E2 — a missing model card is the error now.
+    try {
+      compile(
+        ir([
+          r("R1", "a", "0", 1000),
+          { type: "S", name: "S1", n: ["a", "0"], ctrl: ["b", "0"], model: "sw" },
+        ]),
+      );
+      throw new Error("should have thrown for S without a model");
+    } catch (e) {
+      expect((e as { code: string }).code).toBe("E_UNKNOWN_MODEL");
     }
   });
 });

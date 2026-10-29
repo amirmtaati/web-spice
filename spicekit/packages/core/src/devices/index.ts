@@ -17,6 +17,7 @@ import { mosfetDevice } from "./mosfet.ts";
 import { mutualDevice } from "./mutual.ts";
 import { resistorDevice } from "./resistor.ts";
 import { sourceDevice } from "./sources.ts";
+import { switchDevice } from "./switches.ts";
 
 export type {
   Device,
@@ -72,11 +73,7 @@ function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | unde
       return jfetDevice(ce, compiled.options);
     case "S":
     case "W":
-      throw new EngineError({
-        code: "E_NOT_IMPLEMENTED",
-        message: `${ce.type} device simulation lands with milestone E2 (SPEC §22)`,
-        location: { elementName: ce.name },
-      });
+      return switchDevice(ce);
     case "X":
       throw new EngineError({
         code: "E_NOT_IMPLEMENTED",

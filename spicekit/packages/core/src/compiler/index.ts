@@ -225,7 +225,7 @@ export function compile(ir: Circuit): CompiledCircuit {
     if (ce.branch !== undefined) {
       ce.branch += nodeTotal;
     }
-    if ((ce.type === "F" || ce.type === "H") && ce.controlBranch !== undefined) {
+    if ((ce.type === "F" || ce.type === "H" || ce.type === "W") && ce.controlBranch !== undefined) {
       ce.controlBranch += nodeTotal;
     }
   }
@@ -327,13 +327,27 @@ function checkName(el: Element, seen: Set<string>): void {
   seen.add(lower);
 }
 
-const E1_TYPES = new Set(["R", "C", "L", "K", "V", "I", "E", "G", "F", "H"]);
+const IMPLEMENTED_TYPES = new Set([
+  "R",
+  "C",
+  "L",
+  "K",
+  "V",
+  "I",
+  "E",
+  "G",
+  "F",
+  "H",
+  "D",
+  "Q",
+  "M",
+  "J",
+  "S",
+  "W",
+]);
 
 function rejectDeferred(el: Element): void {
-  if (el.type === "D" || el.type === "Q" || el.type === "M" || el.type === "J") {
-    return; // parsed and compiled; device simulation arrives with E2
-  }
-  if (!E1_TYPES.has(el.type)) {
+  if (!IMPLEMENTED_TYPES.has(el.type)) {
     throw new EngineError({
       code: "E_NOT_IMPLEMENTED",
       message: `Element type "${el.type}" is not implemented yet`,
