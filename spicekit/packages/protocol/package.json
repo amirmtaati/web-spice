@@ -1,0 +1,20 @@
+{
+  "name": "@spicekit/protocol",
+  "version": "0.1.0",
+  "description": "Versioned contract between any GUI and the spicekit engine: Circuit IR, messages, zod schemas, error codes.",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "zod": "^4.1.0"
+  }
+}

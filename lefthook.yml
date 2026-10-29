@@ -1,0 +1,14 @@
+# Git hooks (SPEC §12.6). CI is the authority; hooks are a convenience.
+# Install once after cloning:  bun run hooks:install
+pre-commit:
+  commands:
+    biome:
+      glob: "*.{ts,tsx,js,mjs,json}"
+      run: bunx biome check --no-errors-on-unmatched --staged
+    typecheck:
+      run: bunx tsc -b
+
+commit-msg:
+  commands:
+    commitlint:
+      run: bunx commitlint --edit {1}

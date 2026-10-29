@@ -1,0 +1,17 @@
+{
+  "name": "@spicekit/testing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private test support package: circuit builders, fixture loaders, tolerances, reference comparer.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@spicekit/protocol": "workspace:*"
+  }
+}

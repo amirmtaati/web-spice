@@ -1,0 +1,34 @@
+# Dependencies / build artifacts
+node_modules/
+dist/
+dist.node/
+*.tsbuildinfo
+build/
+.bundle-check/
+
+# Test & coverage
+coverage/
+playwright-report/
+test-results/
+.nyc_output/
+
+# Env & secrets — never commit tokens
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Bun
+.bun/install-cache/
+
+# Playwright
+blob-report/
+
+# Generated docs
+typedoc/

@@ -1,0 +1,96 @@
+# CI (SPEC §15.1). Target pipeline < 12 min. Browser jobs (Chromium/Firefox/
+# WebKit engine suites + Playwright e2e + visual regression) are stubbed out
+# until milestone E1/U1 lands real suites — see docs/progress.md.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Static (biome, eslint, tsc -b, depcruise)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+      - name: Biome
+        run: bun run lint
+      - name: ESLint (type-aware)
+        run: bun run lint:eslint
+      - name: Typecheck (project references)
+        run: bun run typecheck
+      - name: Dependency boundaries
+        run: bun run check:deps
+
+  test:
+    name: Tests (bun test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+      - name: Unit + integration tests
+        run: bun test
+      # - name: Coverage thresholds (per-package overrides land with E1)
+      #   run: bun run test:coverage
+
+  ui-build:
+    name: UI build (circuit-studio)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+      - name: Build production bundle
+        run: bun run --filter circuit-studio build
+      # - name: Bundle size budget (350 kB gzip initial) — lands with U1
+  # Browser-target bundle check of runtime-agnostic packages (SPEC §2.2):
+  # fails if Bun/Node-specific code is pulled into a browser bundle.
+  browser-bundle:
+    name: Browser-target bundle check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+      - name: Bundle protocol/core/client for browser target
+        run: |
+          bun build spicekit/packages/protocol/src/index.ts --target browser --outdir .bundle-check/protocol --format esm
+          bun build spicekit/packages/core/src/index.ts --target browser --outdir .bundle-check/core --format esm
+          bun build spicekit/packages/client/src/index.ts --target browser --outdir .bundle-check/client --format esm
+      - name: Assert no Bun/Node globals leaked into bundles
+        run: |
+          ! grep -rE "(bun:|node:)[a-z]+" .bundle-check --include="*.js" -l
+
+  security:
+    name: Security (audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - name: bun audit (non-blocking until first release cut)
+        run: bun audit
+        continue-on-error: true
+      # CodeQL, license allow-list, secret scanning, SBOM: land before R1 (SPEC §15.1.7)

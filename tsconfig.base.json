@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "useDefineForClassFields": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+
+    // Explicit .ts import extensions are the one import-extension policy
+    // (works natively under Bun and Vite); declarations-only emit keeps
+    // cross-package types available for tsc -b while runtime resolution
+    // stays on source.
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true,
+
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    "types": []
+  }
+}

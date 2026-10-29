@@ -1,0 +1,19 @@
+{
+  "name": "@spicekit/server",
+  "version": "0.1.0",
+  "description": "Bun WebSocket host for the spicekit engine (Bun-only package).",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@spicekit/protocol": "workspace:*"
+  }
+}

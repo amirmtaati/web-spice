@@ -1,0 +1,29 @@
+{
+  "name": "circuit-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser circuit studio: schematic editor, instruments, dockable dashboard. Only src/sim imports @spicekit/client.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "bun --bun run vite",
+    "build": "bun --bun run vite build",
+    "preview": "bun --bun run vite preview",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@spicekit/client": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "tailwindcss": "^4.1.0",
+    "vite": "^7.1.0"
+  }
+}

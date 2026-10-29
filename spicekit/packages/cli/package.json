@@ -1,0 +1,22 @@
+{
+  "name": "@spicekit/cli",
+  "version": "0.1.0",
+  "description": "spicekit command-line interface: run, check, convert, serve (Bun-only package).",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "spicekit": "./src/index.ts"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@spicekit/protocol": "workspace:*"
+  }
+}

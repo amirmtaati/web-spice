@@ -1,0 +1,7 @@
+* RC divider — first analytical fixture for E1 (SPEC §22 task 3).
+* Exact: after t >> tau, v(out) = 5 V * Zc/(Zc+R); at t = tau, v = 5*(1-e^-1).
+V1 in 0 DC 5
+R1 in out 1k
+C1 out 0 1u
+.tran 1m 10m
+.end

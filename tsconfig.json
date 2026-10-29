@@ -1,0 +1,4 @@
+{
+  "files": [],
+  "references": [{ "path": "spicekit" }, { "path": "circuit-studio" }]
+}

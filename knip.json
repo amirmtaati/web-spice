@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/knip/schema.json",
+  "entry": [
+    "spicekit/packages/*/src/index.ts",
+    "spicekit/scripts/*.ts",
+    "circuit-studio/src/main.tsx",
+    "circuit-studio/e2e/*.spec.ts"
+  ],
+  "project": ["spicekit/packages/*/src/**/*.ts", "circuit-studio/src/**/*.{ts,tsx}"],
+  "ignore": ["**/test/**", "**/dist/**"],
+  "ignoreDependencies": ["lefthook", "@commitlint/cli", "@commitlint/config-conventional", "knip"],
+  "include": ["exports", "types", "dependencies", "unlisted"]
+}

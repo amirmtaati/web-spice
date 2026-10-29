@@ -1,0 +1,14 @@
+# Bun configuration for the web-spice monorepo.
+# See SPEC.md §3.3. Coverage thresholds are enforced per-package once suites
+# exist (tracked in docs/progress.md); the lcov-parsing script lands with E1.
+
+[install]
+exact = true
+
+[test]
+coverageSkipTestFiles = true
+coverageReporter = ["text"]
+
+# UI package (circuit-studio) will add: preload = ["./test-setup.ts"] (happy-dom)
+# when the first UI component tests arrive (U-track). Engine packages never
+# load a DOM.
