@@ -26,6 +26,7 @@ import {
   checkModelRefs,
   checkSourceLoops,
 } from "./checks.ts";
+import { expandSubcircuits } from "./subckt.ts";
 
 export type { CompiledCircuit, CompiledElement, CompileWarning } from "./types.ts";
 
@@ -34,7 +35,10 @@ import type { CompiledCircuit, CompiledElement, CompileWarning } from "./types.t
 const MAX_ELEMENTS = 50_000; // SPEC §16 resource limits
 const MAX_NODES = 50_000;
 
-export function compile(ir: Circuit): CompiledCircuit {
+export function compile(irInput: Circuit): CompiledCircuit {
+  // Subcircuit expansion (E3) runs first: X instances flatten into plain
+  // elements with hierarchical names, so every later stage sees a flat IR.
+  const ir = expandSubcircuits(irInput);
   if (ir.elements.length > MAX_ELEMENTS) {
     throw limitError(`Circuit has ${ir.elements.length} elements (limit ${MAX_ELEMENTS})`);
   }
@@ -123,7 +127,7 @@ export function compile(ir: Circuit): CompiledCircuit {
       case "E":
       case "G": {
         ce.nodes = el.n.map((n) => nodeOf(n));
-        ce.value = numericExtra(el, el.type === "E" ? "gain" : "gm", el.name);
+        ce.value = numericExtra(el, el.type === "E" ? "gain" : "gm", el.name, scope);
         if (el.type === "E") {
           // VCVS defines a branch current unknown; G (VCCS) does not.
           ce.branch = branchCount0(branchOwners);
@@ -135,7 +139,7 @@ export function compile(ir: Circuit): CompiledCircuit {
       case "F":
       case "H": {
         ce.nodes = [nodeOf(nd(el.n, 0)), nodeOf(nd(el.n, 1))];
-        ce.value = numericExtra(el, "gain", el.name);
+        ce.value = numericExtra(el, "gain", el.name, scope);
         ce.controlName = stringExtra(el, "control");
         if (el.type === "H") {
           ce.branch = branchCount0(branchOwners);
@@ -225,9 +229,12 @@ export function compile(ir: Circuit): CompiledCircuit {
         break;
       }
       case "X": {
+        // Unreachable after expandSubcircuits — X instances are flattened
+        // away; a residual one means an undefined subcircuit (already
+        // reported by the expander). Kept for exhaustive switching.
         throw new EngineError({
-          code: "E_NOT_IMPLEMENTED",
-          message: "Subcircuit flattening lands with milestone E3 (SPEC §22)",
+          code: "E_UNKNOWN_MODEL",
+          message: `${el.name} instantiates unknown subcircuit "${el.subckt}"`,
           location: { elementName: el.name },
         });
       }
@@ -345,16 +352,34 @@ function defaultDc(el: Extract<Element, { type: "V" | "I" }>, warnings: CompileW
   return 0;
 }
 
-function numericExtra(el: Element, key: string, name: string): number {
+function numericExtra(el: Element, key: string, name: string, scope?: ParamScope): number {
   const raw = (el as Record<string, unknown>)[key];
-  if (typeof raw !== "number" || !Number.isFinite(raw)) {
-    throw new EngineError({
-      code: "E_PARSE",
-      message: `${name} is missing a finite ${key}`,
-      location: { elementName: name },
-    });
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) {
+      throw badGain(name, key);
+    }
+    return raw;
   }
-  return raw;
+  // Expression form ({...} from the netlist): resolve against the scope.
+  if (typeof raw === "string" && scope !== undefined) {
+    try {
+      const v = resolveExpr(raw, scope);
+      if (Number.isFinite(v)) {
+        return v;
+      }
+    } catch {
+      // fall through to the located error below
+    }
+  }
+  throw badGain(name, key);
+}
+
+function badGain(name: string, key: string): EngineError {
+  return new EngineError({
+    code: "E_PARSE",
+    message: `${name} is missing a finite ${key}`,
+    location: { elementName: name },
+  });
 }
 
 function stringExtra(el: Element, key: string): string {

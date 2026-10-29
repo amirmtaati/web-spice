@@ -21,7 +21,9 @@
  * required (e.g. switch RON/ROFF positivity).
  */
 
-import type { ModelCard } from "@spicekit/protocol";
+import type { ModelCard, Subcircuit } from "@spicekit/protocol";
+
+import { parseNetlist } from "../parser/index.ts";
 
 /** One recognized model parameter: SPICE name, unit, default, aliases. */
 export interface ModelParamSpec {
@@ -318,6 +320,71 @@ export function builtinModel(name: string): ModelCard | undefined {
 /** Sorted built-in card names (for library browsers / CLI listing). */
 export function builtinModelNames(): string[] {
   return BUILTIN_MODEL_CARDS.map((card) => card.name).sort();
+}
+
+/**
+ * Built-in op-amp macromodel subcircuits (E3, SPEC §5.7 "Op-amp: Subcircuit
+ * macromodels: ideal, single-pole (GBW, …)"). Written as SPICE text and
+ * parsed once — they exercise the exact same `.subckt` path as user code.
+ *
+ *  OPAMP_IDEAL — infinite-bandwidth voltage amplifier: Rin 1 MΩ, gain 1e6.
+ *  OPAMP1P     — single-pole macromodel: gain A0, dominant pole at
+ *                GBW/A0 (R=1 k, C = A0/(2π·R·GBW)), output resistance.
+ *                GBW verification: non-inverting closed-loop gain G has
+ *                bandwidth GBW/G (gain-bandwidth product constant).
+ */
+const OPAMP_IDEAL_TEXT = `builtin op-amp macromodels
+.subckt OPAMP_IDEAL INP INN OUT params: GAIN=1e6 RIN=1meg
+  RIN INP INN {RIN}
+  E1 OUT 0 INP INN {GAIN}
+.ends
+`;
+
+const OPAMP1P_TEXT = `builtin op-amp macromodels
+.subckt OPAMP1P INP INN OUT params: A0=1e6 GBW=1e6 ROUT=100 RIN=1meg
+  RIN INP INN {RIN}
+  E1 N1 0 INP INN {A0}
+  R1 N1 N2 1000
+  C1 N2 0 {A0/(2*pi*1000*GBW)}
+  E2 N3 0 N2 0 1
+  ROUTE N3 OUT {ROUT}
+.ends
+`;
+
+const BUILTIN_SUBCKT_CACHE = new Map<string, Subcircuit>();
+
+/** The built-in macromodel subcircuit `name` (case-insensitive), or undefined. */
+export function builtinSubckt(name: string): Subcircuit | undefined {
+  const lower = name.toLowerCase();
+  const cached = BUILTIN_SUBCKT_CACHE.get(lower);
+  if (cached !== undefined) {
+    return cached;
+  }
+  let sub: Subcircuit | undefined;
+  if (lower === "opamp_ideal") {
+    sub = parseBuiltin(OPAMP_IDEAL_TEXT, "OPAMP_IDEAL");
+  } else if (lower === "opamp1p" || lower === "opamp_1p") {
+    sub = parseBuiltin(OPAMP1P_TEXT, "OPAMP1P");
+  }
+  if (sub !== undefined) {
+    BUILTIN_SUBCKT_CACHE.set(lower, sub);
+  }
+  return sub;
+}
+
+/** Sorted built-in macromodel names (for library browsers / CLI listing). */
+export function builtinSubcktNames(): string[] {
+  return ["OPAMP1P", "OPAMP_IDEAL"].sort();
+}
+
+/** Parse a built-in template into a Subcircuit IR. */
+function parseBuiltin(text: string, name: string): Subcircuit {
+  const circuit = parseNetlist(text);
+  const sub = circuit.subcircuits[name.toLowerCase()];
+  if (sub === undefined) {
+    throw new Error(`builtinSubckt: template for ${name} did not parse`);
+  }
+  return sub;
 }
 
 /** Default value a spec contributes when the card omits the parameter. */

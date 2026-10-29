@@ -204,7 +204,7 @@ describe("compiler — pre-flight checks", () => {
     ).toThrow(/inductance/);
   });
 
-  test("B compiles from E3; X stays explicit E_NOT_IMPLEMENTED; S needs a model", () => {
+  test("B compiles from E3; X without a subckt is E_UNKNOWN_MODEL; S needs a model", () => {
     // B (behavioral source) is implemented from E3: it compiles, and the
     // expression itself is validated by the device's dual compiler.
     const bCompiled = compile(
@@ -226,7 +226,8 @@ describe("compiler — pre-flight checks", () => {
       );
       throw new Error("should have thrown for X");
     } catch (e) {
-      expect((e as { code: string }).code).toBe("E_NOT_IMPLEMENTED");
+      // Unknown subcircuit reference reports E_UNKNOWN_MODEL (E3 expander).
+      expect((e as { code: string }).code).toBe("E_UNKNOWN_MODEL");
     }
     // S is simulated from E2 — a missing model card is the error now.
     try {

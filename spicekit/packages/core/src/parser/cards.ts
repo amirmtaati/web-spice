@@ -264,31 +264,27 @@ function isKeywordOrWave(t: CardToken): boolean {
 export const parseE: ElementParser = (tokens) => {
   const n = nodes(tokens, 1, 4);
   const { expr } = parseExprValue(tokens, 5);
-  const gain = asNumber(expr, tok(tokens, 5), "voltage gain");
-  return { type: "E", name: tok(tokens, 0).text, n, gain };
+  return { type: "E", name: tok(tokens, 0).text, n, gain: expr };
 };
 
 export const parseG: ElementParser = (tokens) => {
   const n = nodes(tokens, 1, 4);
   const { expr } = parseExprValue(tokens, 5);
-  const gm = asNumber(expr, tok(tokens, 5), "transconductance");
-  return { type: "G", name: tok(tokens, 0).text, n, gm };
+  return { type: "G", name: tok(tokens, 0).text, n, gm: expr };
 };
 
 export const parseF: ElementParser = (tokens) => {
   const n = nodes(tokens, 1, 2);
   const control = tok(tokens, 3).text;
   const { expr } = parseExprValue(tokens, 4);
-  const gain = asNumber(expr, tok(tokens, 4), "current gain");
-  return { type: "F", name: tok(tokens, 0).text, n, control, gain };
+  return { type: "F", name: tok(tokens, 0).text, n, control, gain: expr };
 };
 
 export const parseH: ElementParser = (tokens) => {
   const n = nodes(tokens, 1, 2);
   const control = tok(tokens, 3).text;
   const { expr } = parseExprValue(tokens, 4);
-  const gain = asNumber(expr, tok(tokens, 4), "transresistance");
-  return { type: "H", name: tok(tokens, 0).text, n, control, gain };
+  return { type: "H", name: tok(tokens, 0).text, n, control, gain: expr };
 };
 
 export const parseD: ElementParser = (tokens) => {
@@ -426,6 +422,64 @@ export const parseB: ElementParser = (tokens) => {
     kind,
     expr: parts.join(" "),
   };
+};
+
+/** Xname node1 node2 ... subcktname [params: k=v ...] — subcircuit call. */
+export const parseX: ElementParser = (tokens) => {
+  if (tokens.length < 3) {
+    throw new FAIL("X card expects nodes and a subcircuit name", tok(tokens, 0).line, 1);
+  }
+  // Positional layout: nodes from index 1 up to the subcircuit name, then an
+  // optional trailing `params: k=v ...` group (colon glued or separate).
+  let last = tokens.length - 1;
+  let params: Record<string, Expr> | undefined;
+  for (let i = 1; i < tokens.length; i++) {
+    const t = tok(tokens, i).text.toLowerCase();
+    if (t === "params:" || t === "params") {
+      if (i === 1) {
+        throw new FAIL("X card expects at least one node before params:", tok(tokens, i).line, 1);
+      }
+      last = i - 1; // subcircuit name sits just before the params group
+      params = {};
+      for (let j = i + 1; j < tokens.length; j++) {
+        const kv = tok(tokens, j).text;
+        const eq = kv.indexOf("=");
+        if (eq <= 0) {
+          throw new FAIL(
+            `X params expects key=value, got "${kv}"`,
+            tok(tokens, j).line,
+            tok(tokens, j).col,
+          );
+        }
+        const key = kv.slice(0, eq).toLowerCase();
+        const raw = kv.slice(eq + 1);
+        try {
+          params[key] = parseValue(raw);
+        } catch {
+          params[key] = raw; // expression string ({...} or bare expression)
+        }
+      }
+      break;
+    }
+  }
+  if (last < 2) {
+    throw new FAIL("X card expects at least one node", tok(tokens, 0).line, 1);
+  }
+  const subckt = tok(tokens, last).text;
+  const nodeList: string[] = [];
+  for (let i = 1; i < last; i++) {
+    nodeList.push(tok(tokens, i).text);
+  }
+  const el: Extract<Element, { type: "X" }> = {
+    type: "X",
+    name: tok(tokens, 0).text,
+    n: nodeList,
+    subckt,
+  };
+  if (params !== undefined) {
+    el.params = params;
+  }
+  return el;
 };
 
 /** Apply the optional ON/OFF state suffix (SPICE3 switch cards). */
