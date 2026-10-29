@@ -13,7 +13,7 @@
 
 import type { CompiledCircuit, CompiledElement } from "../compiler/index.ts";
 import { sqrt } from "../math/index.ts";
-import type { Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
 
 const MUTUAL_STATE_SLOTS = 0;
 
@@ -61,6 +61,15 @@ export function mutualDevice(ce: CompiledElement, compiled: CompiledCircuit): De
       stamp.addA(br2, br1, -factor);
       stamp.addRhs(br1, rhs1);
       stamp.addRhs(br2, rhs2);
+    },
+    stampAc(stamp: AcStamp, _env: DeviceEnv, omega: number): void {
+      // AC cross terms: v1 gains +jωM·i2 and v2 gains +jωM·i1, so both
+      // branch rows subtract jωM·(partner current). ω = 0 → no coupling.
+      if (omega === 0) {
+        return;
+      }
+      stamp.addAc(br1, br2, 0, -omega * mCoupling);
+      stamp.addAc(br2, br1, 0, -omega * mCoupling);
     },
   };
 }

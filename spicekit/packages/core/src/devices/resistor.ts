@@ -6,8 +6,8 @@
 
 import type { SimOptions } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
-import type { Device, DeviceEnv, MatrixStamp } from "./base.ts";
-import { stampConductance } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
+import { stampConductance, stampConductanceAc } from "./base.ts";
 
 export function resistorDevice(ce: CompiledElement, options: SimOptions): Device {
   const dT = options.temp - options.tnom;
@@ -20,6 +20,11 @@ export function resistorDevice(ce: CompiledElement, options: SimOptions): Device
     stateSlots: 0,
     stampDC(stamp: MatrixStamp, _env: DeviceEnv): void {
       stampConductance(stamp, p, n, conductance);
+    },
+    stampAc(stamp: AcStamp, _env: DeviceEnv, _omega: number): void {
+      // Resistors are frequency-independent; thermal noise is handled by the
+      // noise analysis (E3), not the AC stamp.
+      stampConductanceAc(stamp, p, n, conductance, 0);
     },
   };
 }

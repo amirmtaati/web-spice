@@ -19,6 +19,16 @@ export interface MatrixStamp {
   addRhs(row: number, value: number): void;
 }
 
+/**
+ * Complex matrix + RHS write access for AC small-signal stamping (E3).
+ * Values are (real, imaginary) pairs; the underlying storage is interleaved
+ * so entries stay cache-local (see solver/complex.ts).
+ */
+export interface AcStamp {
+  addAc(row: number, col: number, re: number, im: number): void;
+  addRhsAc(row: number, re: number, im: number): void;
+}
+
 /** Per-device view over the shared simulation state. */
 export interface DeviceEnv {
   /** MNA offsets of this device's nodes (ground = −1). Reused scratch. */
@@ -39,6 +49,14 @@ export interface DeviceEnv {
 /** Unit of the local truncation error estimate (current or voltage). */
 export type LteUnit = "A" | "V";
 
+/**
+ * One device's small-signal AC model (SPEC §5.5: "AC: linearize at OP,
+ * complex solve per frequency"). `env.x` holds the DC operating point while
+ * the complex solution lives in the AC workspace, so devices may read their
+ * bias freely. `omega` is 2πf; ω = 0 means the DC limit (C open, L short).
+ */
+export type AcStampFn = (m: AcStamp, env: DeviceEnv, omega: number) => void;
+
 export interface Device {
   readonly name: string;
   readonly stateSlots: number;
@@ -46,6 +64,8 @@ export interface Device {
   stampDC(m: MatrixStamp, env?: DeviceEnv): void;
   /** Companion-model stamp for a transient step of size h. */
   stampTran?(m: MatrixStamp, env: DeviceEnv, h: number, method: IntegrationMethod): void;
+  /** Small-signal AC stamp at angular frequency ω (E3). */
+  stampAc?: AcStampFn;
   /**
    * Junction limiting before the stamp (SPEC §5.3, ngspice semantics): read
    * the junction voltages from the current iterate (env.x), clamp them
@@ -110,5 +130,39 @@ export function stampVoltageBranch(stamp: MatrixStamp, br: number, p: number, n:
   if (n >= 0) {
     stamp.addA(n, br, -1);
     stamp.addA(br, n, -1);
+  }
+}
+
+/** Complex form of `stampVoltageBranch` (all entries real +1/−1). */
+export function stampVoltageBranchAc(stamp: AcStamp, br: number, p: number, n: number): void {
+  if (p >= 0) {
+    stamp.addAc(p, br, 1, 0);
+    stamp.addAc(br, p, 1, 0);
+  }
+  if (n >= 0) {
+    stamp.addAc(n, br, -1, 0);
+    stamp.addAc(br, n, -1, 0);
+  }
+}
+
+/** Add a symmetric 2×2 complex conductance block between two node offsets. */
+export function stampConductanceAc(
+  stamp: AcStamp,
+  p: number,
+  n: number,
+  gre: number,
+  gim: number,
+): void {
+  if (p >= 0) {
+    stamp.addAc(p, p, gre, gim);
+    if (n >= 0) {
+      stamp.addAc(p, n, -gre, -gim);
+    }
+  }
+  if (n >= 0) {
+    stamp.addAc(n, n, gre, gim);
+    if (p >= 0) {
+      stamp.addAc(n, p, -gre, -gim);
+    }
   }
 }

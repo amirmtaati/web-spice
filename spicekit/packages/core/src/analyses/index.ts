@@ -7,6 +7,7 @@
 import { type AnalysisRequest, EngineError, type SimOptions } from "@spicekit/protocol";
 
 import type { CompiledCircuit } from "../compiler/index.ts";
+import { type AcOutcome, acSignals, runAc } from "./ac.ts";
 import { runDcSweep } from "./dc.ts";
 import { runOp } from "./op.ts";
 import type { AnalysisKind, RunResult, SignalSeries } from "./result.ts";
@@ -40,6 +41,7 @@ export function runAnalysis(
     case "tran":
       return runTranAnalysis(ws, opts, request);
     case "ac":
+      return runAcAnalysis(ws, request);
     case "noise":
     case "tf":
       throw new EngineError({
@@ -54,6 +56,38 @@ export function runAnalysis(
       });
     }
   }
+}
+
+function runAcAnalysis(
+  ws: Workspace,
+  request: Extract<AnalysisRequest, { kind: "ac" }>,
+): RunResult {
+  const outcome: AcOutcome = runAc(ws, request);
+  const points = outcome.freqs.length;
+  const wanted = probeWanted(ws);
+  const signals = acSignals(
+    ws.compiled.nodeNames,
+    ws.compiled.branchOwners,
+    ws.nodeCount,
+    outcome,
+    wanted,
+  );
+  return {
+    kind: "ac",
+    axis: outcome.freqs,
+    axisName: "freq",
+    signals,
+    stats: {
+      points,
+      newtonIterations: 0,
+      acceptedSteps: 0,
+      rejectedSteps: 0,
+      minStep: 0,
+      maxStep: 0,
+      opMethod: outcome.opMethod,
+      notes: [],
+    },
+  };
 }
 
 function runOpAnalysis(ws: Workspace, options: SimOptions): RunResult {

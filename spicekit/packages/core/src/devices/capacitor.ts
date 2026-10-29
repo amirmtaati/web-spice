@@ -16,8 +16,8 @@
 
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
-import type { Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
-import { branchVoltage, stampConductance } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
+import { branchVoltage, stampConductance, stampConductanceAc } from "./base.ts";
 
 const V0 = 0; // v_{n}   (previous accepted step)
 const V1 = 1; // v_{n-1}
@@ -67,6 +67,13 @@ export function capacitorDevice(ce: CompiledElement): Device {
       if (n >= 0) {
         stamp.addRhs(n, -j);
       }
+    },
+    stampAc(stamp: AcStamp, _env: DeviceEnv, omega: number): void {
+      // i = jωC·v; ω = 0 (DC limit) → open circuit, nothing to stamp.
+      if (omega === 0 || c === 0) {
+        return;
+      }
+      stampConductanceAc(stamp, p, n, 0, omega * c);
     },
     accept(env: DeviceEnv): void {
       const s = env.stateBase;

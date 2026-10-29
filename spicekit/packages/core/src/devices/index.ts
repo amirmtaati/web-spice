@@ -20,6 +20,7 @@ import { sourceDevice } from "./sources.ts";
 import { switchDevice } from "./switches.ts";
 
 export type {
+  AcStamp,
   Device,
   DeviceEnv,
   IntegrationMethod,

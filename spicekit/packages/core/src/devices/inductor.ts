@@ -15,8 +15,8 @@
 
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
-import type { Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
-import { branchVoltage } from "./base.ts";
+import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
+import { branchVoltage, stampVoltageBranchAc } from "./base.ts";
 
 const I0 = 0; // i_{n}
 const I1 = 1; // i_{n-1}
@@ -61,6 +61,16 @@ export function inductorDevice(ce: CompiledElement): Device {
       stampVoltageBranch(stamp, br, p, n);
       stamp.addA(br, br, -coef);
       stamp.addRhs(br, rhs);
+    },
+    stampAc(stamp: AcStamp, _env: DeviceEnv, omega: number): void {
+      if (omega === 0) {
+        // DC limit: ideal short, identical to the DC stamp.
+        stampVoltageBranchAc(stamp, br, p, n);
+        return;
+      }
+      // Branch equation v_p − v_n = jωL·i  →  row: (v_p − v_n) − jωL·i = 0.
+      stampVoltageBranchAc(stamp, br, p, n);
+      stamp.addAc(br, br, 0, -omega * l);
     },
     accept(env: DeviceEnv): void {
       const s = env.stateBase;
