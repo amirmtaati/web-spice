@@ -9,10 +9,15 @@ by Bun.
 dependency-cruiser). The engine runs in a Web Worker by default; UI code never
 touches transports.
 
-**Agents start here:** [`AGENTS.md`](./AGENTS.md) is the complete, self-contained
-UI ⇄ engine contract (client API, transports, streaming, live mode, errors,
-IR cheat sheet, phased implementation plan). It is written so the engine
-source never has to be read.
+**Agents start here:**
+- [`UI-AGENT-PROMPT.md`](./UI-AGENT-PROMPT.md) — copy-paste kickoff prompt.
+- [`UI-UX-SPEC.md`](./UI-UX-SPEC.md) — the UI/UX work order: design system,
+  shell, instruments, measurement surfaces (per-node/per-element V & I),
+  waveform plots (capacitor charge/discharge lab), milestones UX0–UX7 with
+  task tables and acceptance gates.
+- [`AGENTS.md`](./AGENTS.md) — the engine ⇄ UI wire contract (client API,
+  transports, streaming, live mode, errors, IR cheat sheet). The engine
+  source never has to be read.
 
 ```
 src/

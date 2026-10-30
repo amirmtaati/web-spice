@@ -13,11 +13,19 @@ Last updated: 2026-10-30.
 
 ## 0. How to use this document
 
+**Scope.** This file covers the **engine wire contract** (how the UI talks
+to the simulator). For *what to build and how it should look, feel, and be
+sequenced* — the design system, shell, instruments, measurement surfaces,
+milestones UX0–UX7 and task tables — read
+[`UI-UX-SPEC.md`](./UI-UX-SPEC.md) (work order) and start from
+[`UI-AGENT-PROMPT.md`](./UI-AGENT-PROMPT.md).
+
 **Precedence.** If sources disagree, in order:
 
 1. The TypeScript types of `@spicekit/protocol` and `@spicekit/client`
    (installed workspace packages — the compiler is the authority).
-2. This document.
+2. This document (engine-wire matters) and `UI-UX-SPEC.md`
+   (UX/design/sequencing matters).
 3. `docs/spec/SPEC.md` §4 (protocol), §6 (client), §8 (UI state), §22
    (milestones) — the long-form original.
 4. `docs/embedding.md` — engine-side embedding examples (React/Vue/plain JS).

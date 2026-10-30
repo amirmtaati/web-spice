@@ -2,6 +2,35 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## UI/UX specification and agent kickoff prompt for circuit-studio (2026-10-31)
+
+**Status: complete.** Documentation only (no UI code yet, by design); the
+UI track now has a full work order with milestones and task tables.
+
+- **`circuit-studio/UI-UX-SPEC.md`** — the professional UI/UX
+  specification (v1.0) expanding master SPEC §8–11 and the U1–U5/R1
+  milestones into an agent-executable work order: Studio DS design system
+  (full token set, 3 themes, trace palette, typography, motion), app shell
+  and layout presets (Build/Debug/Present), command system, 8 core
+  experience flows, and feature specs with special depth on the two hard
+  product requirements — (1) per-node/per-element voltage & current
+  visibility (Results table, voltage badges with heat map, current arrows,
+  power badges, hover tooltips, cross-probing, current-flow overlay,
+  multimeter/power meter, per-device measurement readouts) and (2)
+  waveform graphs including capacitor charge/discharge with τ annotation
+  presets ("Experiments": RC charge/discharge, RLC step, integrator, LC
+  resonance, diode IV; least-squares τ estimation from cursors).
+  Milestones **UX0–UX7 + UXR** with task tables (UXn-Tk), acceptance
+  gates, performance budgets, a11y/keyboard contract, testing strategy,
+  traceability matrix, risks, and release-gate DoD; reconciled with
+  `circuit-studio/AGENTS.md` W0–W4 and master U1–U5.
+- **`circuit-studio/UI-AGENT-PROMPT.md`** — the copy-paste kickoff prompt
+  for the implementing agent (reading order, working rules, gates,
+  start-at-UX0).
+- Cross-linked: `circuit-studio/AGENTS.md` §0 now scopes itself to the
+  wire contract and defers UX/sequencing to the new spec; app README
+  lists both entry documents.
+
 ## UI handoff — engine-integration spec for circuit-studio (2026-10-30)
 
 **Status: complete.** No UI code written (per plan: the U-track implements
