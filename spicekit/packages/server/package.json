@@ -13,5 +13,15 @@
   "files": [
     "dist"
   ],
-  "dependencies": {}
+  "bin": {
+    "spicekit-server": "./src/main.ts"
+  },
+  "dependencies": {
+    "@spicekit/core": "workspace:*",
+    "@spicekit/protocol": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@spicekit/client": "workspace:*"
+  }
 }

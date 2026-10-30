@@ -1,12 +1,19 @@
 #!/usr/bin/env bun
 /**
- * `spicekit` CLI (SPEC §7.2). E1 implements `run` and `check` over the
- * in-process engine; `serve`/`convert`/`--json-lines` land with E4.
+ * `spicekit` CLI (SPEC §7.2): `run`, `check`, `convert`, `serve` over the
+ * in-process engine / WebSocket host.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import type { RunResult } from "@spicekit/core";
-import { describeError, loadCircuit, parseNetlist, simulateNetlist } from "@spicekit/core";
+import {
+  describeError,
+  loadCircuit,
+  parseNetlist,
+  serializeNetlist,
+  simulateNetlist,
+} from "@spicekit/core";
+import type { Circuit } from "@spicekit/protocol";
 
 function usage(): string {
   return `spicekit — SPICE-class circuit simulation
@@ -14,8 +21,8 @@ function usage(): string {
 Usage:
   spicekit run <netlist> [--csv|--json]   Run all analyses in a netlist
   spicekit check <netlist>                Parse + pre-flight checks
-  spicekit convert <in> <out>             Convert between formats (E4)
-  spicekit serve [--port N]               Start the engine server (E4)
+  spicekit convert <in> <out>             Netlist ⇄ circuit-IR JSON
+  spicekit serve [--port N]               Start the WebSocket engine server
 
 Options:
   --csv     Machine-readable CSV output
@@ -170,6 +177,50 @@ function check(args: string[]): number {
   }
 }
 
+function convert(args: string[]): number {
+  const files = args.filter((a) => !a.startsWith("--"));
+  if (files.length !== 2) {
+    console.error("spicekit convert: expected <in> <out>\n");
+    console.error(usage());
+    return 2;
+  }
+  const [input, output] = files as [string, string];
+  try {
+    const text = readFileSync(input, "utf8");
+    let out: string;
+    if (input.endsWith(".json")) {
+      // IR JSON → netlist text.
+      const circuit = JSON.parse(text) as Circuit;
+      out = serializeNetlist(circuit);
+    } else {
+      // Netlist text → IR JSON.
+      const circuit = parseNetlist(text);
+      out = JSON.stringify(circuit, null, 2);
+    }
+    writeFileSync(output, out);
+    console.log(`spicekit convert: wrote ${output}`);
+    return 0;
+  } catch (error) {
+    console.error(`spicekit convert: ${describeError(error)}`);
+    return 1;
+  }
+}
+
+function serve(args: string[]): number {
+  const portIdx = args.indexOf("--port");
+  if (portIdx >= 0) {
+    const value = args[portIdx + 1];
+    if (value !== undefined) {
+      process.env.SPICEKIT_PORT = value;
+    }
+  }
+  // Deferred import: keeps `run`/`check` usable without the server stack.
+  void import("@spicekit/server").then((m) => {
+    m.main();
+  });
+  return 0;
+}
+
 function main(): number {
   const args = Bun.argv.slice(2);
   const command = args[0];
@@ -180,9 +231,9 @@ function main(): number {
     case "check":
       return check(rest);
     case "convert":
+      return convert(rest);
     case "serve":
-      console.error(`spicekit ${command}: lands with milestone E4 (SPEC §22).`);
-      return 2;
+      return serve(rest);
     case "--help":
     case "-h":
     case undefined:

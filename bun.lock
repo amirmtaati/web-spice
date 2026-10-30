@@ -46,6 +46,7 @@
       "dependencies": {
         "@spicekit/core": "workspace:*",
         "@spicekit/protocol": "workspace:*",
+        "@spicekit/server": "workspace:*",
       },
     },
     "spicekit/packages/client": {
@@ -73,6 +74,17 @@
     "spicekit/packages/server": {
       "name": "@spicekit/server",
       "version": "0.1.0",
+      "bin": {
+        "spicekit-server": "./src/main.ts",
+      },
+      "dependencies": {
+        "@spicekit/core": "workspace:*",
+        "@spicekit/protocol": "workspace:*",
+        "zod": "^4.0.0",
+      },
+      "devDependencies": {
+        "@spicekit/client": "workspace:*",
+      },
     },
     "spicekit/packages/testing": {
       "name": "@spicekit/testing",

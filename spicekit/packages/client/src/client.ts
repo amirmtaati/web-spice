@@ -125,6 +125,8 @@ export class SimulatorClientImpl implements SimulatorClient {
   }
 
   async connect(): Promise<EngineInfo> {
+    // Open the underlying transport (worker spawn / WebSocket handshake).
+    await this.transport.start();
     const reply = await this.request({
       id: this.nextRequestId(),
       type: "hello",

@@ -18,6 +18,7 @@
   ],
   "dependencies": {
     "@spicekit/core": "workspace:*",
-    "@spicekit/protocol": "workspace:*"
+    "@spicekit/protocol": "workspace:*",
+    "@spicekit/server": "workspace:*"
   }
 }

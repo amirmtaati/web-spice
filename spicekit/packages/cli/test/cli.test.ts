@@ -2,6 +2,7 @@
  * Engine facade + CLI tests (SPEC §7.2, E1: `run` and `check`).
  */
 import { describe, expect, test } from "bun:test";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { loadCircuit, simulateCircuit, simulateNetlist } from "@spicekit/core";
@@ -151,4 +152,61 @@ describe("CLI", () => {
     expect(r.stdout).toContain("spicekit run");
     expect(r.stdout).toContain("spicekit check");
   });
+
+  test("convert round-trips netlist ⇄ IR JSON (E4)", () => {
+    const tmpIn = join(FIXTURES, "convert-in.cir");
+    const tmpJson = join(FIXTURES, "convert-out.json");
+    const tmpBack = join(FIXTURES, "convert-back.cir");
+    writeFileSync(tmpIn, "convert rt\nV1 a 0 5\nR1 a b 1k\nRl b 0 1k\n.end\n");
+    try {
+      const r1 = cli(["convert", tmpIn, tmpJson]);
+      expect(r1.exitCode).toBe(0);
+      const ir = JSON.parse(readFileSync(tmpJson, "utf8")) as Circuit;
+      expect(ir.elements.length).toBe(3);
+      const r2 = cli(["convert", tmpJson, tmpBack]);
+      expect(r2.exitCode).toBe(0);
+      const text = readFileSync(tmpBack, "utf8");
+      expect(text).toContain("V1 a 0 DC 5");
+      expect(text).toContain(".end");
+    } finally {
+      for (const f of [tmpIn, tmpJson, tmpBack]) {
+        try {
+          unlinkSync(f);
+        } catch {
+          // best effort cleanup
+        }
+      }
+    }
+  });
+
+  test("serve starts the WebSocket host and answers /healthz (E4)", async () => {
+    const port = 47_781;
+    const proc = Bun.spawn(["bun", CLI, "serve", "--port", String(port)], {
+      stdout: "ignore",
+      stderr: "ignore",
+      stdin: "ignore",
+    });
+    try {
+      // Poll until the host answers (or time out).
+      let ok = false;
+      for (let i = 0; i < 50 && !ok; i++) {
+        try {
+          const res = await fetch(`http://localhost:${port}/healthz`);
+          ok = res.status === 200;
+        } catch {
+          await sleep(100);
+        }
+      }
+      expect(ok).toBe(true);
+    } finally {
+      proc.kill();
+      await proc.exited;
+    }
+  }, 15_000);
 });
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
