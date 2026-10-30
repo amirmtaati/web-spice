@@ -9,6 +9,11 @@ by Bun.
 dependency-cruiser). The engine runs in a Web Worker by default; UI code never
 touches transports.
 
+**Agents start here:** [`AGENTS.md`](./AGENTS.md) is the complete, self-contained
+UI ⇄ engine contract (client API, transports, streaming, live mode, errors,
+IR cheat sheet, phased implementation plan). It is written so the engine
+source never has to be read.
+
 ```
 src/
   app/          shell, routing, theming, docking

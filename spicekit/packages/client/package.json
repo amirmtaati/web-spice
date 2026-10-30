@@ -9,6 +9,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./worker-entry": {
+      "types": "./src/worker-entry.ts",
+      "default": "./src/worker-entry.ts"
     }
   },
   "files": [

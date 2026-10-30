@@ -2,6 +2,35 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## UI handoff — engine-integration spec for circuit-studio (2026-10-30)
+
+**Status: complete.** No UI code written (per plan: the U-track implements
+it); the directory now carries the contract an implementing agent needs.
+
+- **`circuit-studio/AGENTS.md`** — self-contained UI ⇄ engine spec written
+  against the shipped E4 API: transport selection (worker default with the
+  Vite `?worker&url` wrapper pattern, WebSocket, in-process for tests),
+  session lifecycle and recovery semantics (worker crash / socket close ⇒
+  fresh session, reconnect + reload), protocol message reference, the
+  data pipeline (axis reconstruction per analysis kind, ring-buffer rules,
+  "React never re-renders per chunk"), live interaction (`setParam`
+  targets and timing, phase continuity, `setExternal` scalar/series), the
+  full error-code table with location pinning via `Circuit.sourceMap`, a
+  Circuit-IR cheat sheet for netlist extraction, capabilities/limits
+  feature-detection, worked TypeScript examples, testing layers
+  (conformance suite, e2e, manual server), and a phased plan (W0–W4) with
+  acceptance criteria mapped to the U milestones.
+- **Enabling change:** `@spicekit/client` now exposes its worker entry as a
+  subpath export (`@spicekit/client/worker-entry`) so the documented Vite
+  worker-wrapper import resolves through the package `exports` map
+  (additive; runtime API surface unchanged, snapshot unaffected — verified
+  resolvable from the circuit-studio workspace).
+- **Known gaps documented honestly** (§13 of the spec): per-run `probes`
+  accepted but engine filters via circuit probes only; no axis column in
+  `data` (reconstruction formulas per analysis kind documented);
+  `progress.fraction` is 0 for live runs; transport loss rejects in-flight
+  requests only via the 10 s timeout — recovery is reconnect + reload.
+
 ## E4 — Client, transports, server, live mode (2026-10-30)
 
 **Status: complete.** The engine talks to the web UI: a stateful engine
