@@ -18,6 +18,7 @@ import { runTransient } from "./tran.ts";
 import { Workspace } from "./workspace.ts";
 
 export type { AnalysisKind, RunResult, SignalSeries } from "./result.ts";
+export { TranStepper } from "./tran.ts";
 
 export interface AnalysisProgress {
   kind: AnalysisKind;

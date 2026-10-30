@@ -10,6 +10,7 @@ import { EngineError } from "@spicekit/protocol";
 import type { CompiledCircuit } from "../compiler/index.ts";
 import type { Device, DeviceEnv, MatrixStamp } from "../devices/index.ts";
 import { buildDevices } from "../devices/index.ts";
+import { type ExternalChannels, nullExternals } from "../devices/waveform.ts";
 import { luFactor, luSolve } from "../solver/lu.ts";
 
 export class Workspace implements MatrixStamp {
@@ -41,7 +42,7 @@ export class Workspace implements MatrixStamp {
   private readonly branchOwners: string[];
   private factored = false;
 
-  constructor(compiled: CompiledCircuit) {
+  constructor(compiled: CompiledCircuit, externals: ExternalChannels = nullExternals) {
     this.compiled = compiled;
     const n = compiled.nodeCount + compiled.branchCount;
     this.size = n;
@@ -52,7 +53,7 @@ export class Workspace implements MatrixStamp {
     this.x = new Float64Array(n);
     this.piv = new Int32Array(n);
     this.scratch = new Float64Array(n);
-    this.devices = buildDevices(compiled);
+    this.devices = buildDevices(compiled, externals);
     // Per-device offsets and state slots, in device order.
     this.deviceNodes = [];
     this.deviceBranches = [];

@@ -54,6 +54,20 @@ export interface DeviceEnv {
 export type LteUnit = "A" | "V";
 
 /**
+ * Live-tunable parameter properties (E4, SPEC §4.4 setParam). Mirrors the
+ * protocol's `ParamTarget["property"]` union (kept structural — protocol
+ * types flow straight through).
+ */
+export type LiveParamProperty =
+  | "value"
+  | "amplitude"
+  | "frequency"
+  | "offset"
+  | "dutyCycle"
+  | "wiper"
+  | "switchState";
+
+/**
  * One device's small-signal AC model (SPEC §5.5: "AC: linearize at OP,
  * complex solve per frequency"). `env.x` holds the DC operating point while
  * the complex solution lives in the AC workspace, so devices may read their
@@ -106,6 +120,14 @@ export interface Device {
   dcValue?(): number;
   /** Update the DC value (DC sweeps); sources only. */
   setDc?(value: number): void;
+  /**
+   * Live parameter change (E4, SPEC §4.4): applied between accepted steps
+   * while a run is active. `time` is the current simulation time (frequency
+   * retunes anchor phase there). Throws E_PARSE for unsupported property/
+   * device combinations. After the call the caller resets the integrator
+   * order and lands a breakpoint at `time` (order reset, SPEC §4.4).
+   */
+  setLiveParam?(property: LiveParamProperty, value: number, time: number): void;
 }
 
 /** Voltage across a two-terminal device (v_plus − v_minus). */

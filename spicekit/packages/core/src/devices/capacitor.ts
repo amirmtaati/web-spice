@@ -14,6 +14,7 @@
  * locally constant h; the controller divides by trtol).
  */
 
+import { EngineError } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
 import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
@@ -30,7 +31,7 @@ const CNT = 6; // accepted-step counter (LTE needs >= 3 history points)
 const CAPACITOR_STATE_SLOTS = 7;
 
 export function capacitorDevice(ce: CompiledElement): Device {
-  const c = ce.value as number;
+  let c = ce.value as number;
   const p = ce.nodes[0] as number;
   const n = ce.nodes[1] as number;
 
@@ -100,6 +101,23 @@ export function capacitorDevice(ce: CompiledElement): Device {
     lteMagnitude(env: DeviceEnv): number {
       // The LTE quantity is a current; compare against the device current.
       return abs(env.state[env.stateBase + IP] as number);
+    },
+    setLiveParam(property, value, _time): void {
+      if (property !== "value") {
+        throw new EngineError({
+          code: "E_PARSE",
+          message: `${ce.name}: capacitors support only "value" (got "${property}")`,
+          location: { elementName: ce.name },
+        });
+      }
+      if (!(value >= 0)) {
+        throw new EngineError({
+          code: "E_PARSE",
+          message: `${ce.name}: capacitance must be >= 0, got ${value}`,
+          location: { elementName: ce.name },
+        });
+      }
+      c = value;
     },
   };
 }

@@ -94,6 +94,8 @@ function buildSwitch(ce: CompiledElement): Device {
   const isVoltageControlled = ce.type === "S";
   const controlBranch = ce.controlBranch ?? -1;
   const initialOn = ce.on ?? false;
+  /** Live override (E4 setParam switchState): null = follow the state machine. */
+  let forcedOn: boolean | null = null;
 
   const controlValue = (env: DeviceEnv): number => {
     if (isVoltageControlled) {
@@ -113,8 +115,13 @@ function buildSwitch(ce: CompiledElement): Device {
         // First Newton pass: the iterate is still all-zeros, so the control
         // value is meaningless — seed the card's ON/OFF state without
         // evaluating the machine and let the next pass take over.
-        env.state[base] = initialOn ? 1 : 0;
+        env.state[base] = (forcedOn ?? initialOn) ? 1 : 0;
         env.state[base + 1] = 1;
+        return false;
+      }
+      if (forcedOn !== null) {
+        // Live override: hold the commanded state, no hysteresis flips.
+        env.state[base] = forcedOn ? 1 : 0;
         return false;
       }
       const [next, changed] = nextState(
@@ -128,7 +135,7 @@ function buildSwitch(ce: CompiledElement): Device {
     stampDC(stamp: MatrixStamp, env: DeviceEnv): void {
       const c = controlValue(env);
       const initialized = (env.state[env.stateBase + 1] as number) > 0.5;
-      const on = initialized ? (env.state[env.stateBase] as number) > 0.5 : initialOn;
+      const on = forcedOn ?? (initialized ? (env.state[env.stateBase] as number) > 0.5 : initialOn);
       stampConductance(stamp, p, n, conductanceAt(model, c, on));
     },
     stampAc(stamp: AcStamp, env: DeviceEnv, _omega: number): void {
@@ -136,8 +143,18 @@ function buildSwitch(ce: CompiledElement): Device {
       // or the smooth-interpolation conductance at the OP control value.
       const c = controlValue(env);
       const initialized = (env.state[env.stateBase + 1] as number) > 0.5;
-      const on = initialized ? (env.state[env.stateBase] as number) > 0.5 : initialOn;
+      const on = forcedOn ?? (initialized ? (env.state[env.stateBase] as number) > 0.5 : initialOn);
       stampConductanceAc(stamp, p, n, conductanceAt(model, c, on), 0);
+    },
+    setLiveParam(property, value, _time): void {
+      if (property !== "switchState") {
+        throw new EngineError({
+          code: "E_PARSE",
+          message: `${ce.name}: switches support only "switchState" (got "${property}")`,
+          location: { elementName: ce.name },
+        });
+      }
+      forcedOn = value > 0.5;
     },
   };
 }

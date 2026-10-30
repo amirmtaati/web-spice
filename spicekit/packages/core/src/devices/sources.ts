@@ -5,13 +5,19 @@
  * Breakpoints from the waveform drive the adaptive timestep controller.
  */
 
+import { EngineError } from "@spicekit/protocol";
 import type { CompiledCircuit, CompiledElement } from "../compiler/index.ts";
 import { ParamScope } from "../eval/index.ts";
 import type { AcStamp, Device, DeviceEnv, MatrixStamp } from "./base.ts";
 import { stampVoltageBranch, stampVoltageBranchAc } from "./base.ts";
-import { createWaveEval, resolveWave, type WaveEval } from "./waveform.ts";
+import type { ExternalChannels } from "./waveform.ts";
+import { createWaveEval, nullExternals, resolveWave, type WaveEval } from "./waveform.ts";
 
-export function sourceDevice(ce: CompiledElement, compiled: CompiledCircuit): Device {
+export function sourceDevice(
+  ce: CompiledElement,
+  compiled: CompiledCircuit,
+  externals: ExternalChannels = nullExternals,
+): Device {
   const p = ce.nodes[0] as number;
   const n = ce.nodes[1] as number;
   let dc = ce.dc ?? 0;
@@ -19,11 +25,33 @@ export function sourceDevice(ce: CompiledElement, compiled: CompiledCircuit): De
   const wave: WaveEval | undefined =
     ce.element.type === "V" || ce.element.type === "I"
       ? ce.element.wave !== undefined
-        ? createWaveEval(resolveWave(ce.element.wave, scope))
+        ? createWaveEval(resolveWave(ce.element.wave, scope), externals)
         : undefined
       : undefined;
 
   const valueAt = (t: number): number => (wave !== undefined ? wave.valueAt(t) : dc);
+
+  /** Route a live setParam to the waveform or the DC value (SPEC §4.4). */
+  const liveParam = (property: string, value: number, time: number): void => {
+    if (wave !== undefined) {
+      if (property === "value") {
+        dc = value; // DC operating-point value (ngspice semantics)
+        return;
+      }
+      wave.retune?.(property as "amplitude" | "frequency" | "offset" | "dutyCycle", value, time);
+      return;
+    }
+    // Plain DC source: amplitude/offset/value all set the DC level.
+    if (property === "value" || property === "amplitude" || property === "offset") {
+      dc = value;
+      return;
+    }
+    throw new EngineError({
+      code: "E_PARSE",
+      message: `${ce.name}: "${property}" needs a waveform (SIN/PULSE) on the source`,
+      location: { elementName: ce.name },
+    });
+  };
 
   // AC small-signal phasor (E3): mag default 0, phase in degrees.
   const acMag = ce.element.type === "V" || ce.element.type === "I" ? (ce.element.ac?.mag ?? 0) : 0;
@@ -63,6 +91,9 @@ export function sourceDevice(ce: CompiledElement, compiled: CompiledCircuit): De
       nextBreakpoint(t: number): number | undefined {
         return wave?.nextBreakpoint(t);
       },
+      setLiveParam(property, value, time): void {
+        liveParam(property, value, time);
+      },
     };
   }
 
@@ -86,6 +117,9 @@ export function sourceDevice(ce: CompiledElement, compiled: CompiledCircuit): De
     },
     nextBreakpoint(t: number): number | undefined {
       return wave?.nextBreakpoint(t);
+    },
+    setLiveParam(property, value, time): void {
+      liveParam(property, value, time);
     },
   };
 }

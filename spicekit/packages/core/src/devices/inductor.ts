@@ -13,6 +13,7 @@
  * LTE (trap): v_lte ≈ (L/12)·|i_{n+1} − 3i_n + 3i_{n−1} − i_{n−2}|.
  */
 
+import { EngineError } from "@spicekit/protocol";
 import type { CompiledElement } from "../compiler/index.ts";
 import { abs } from "../math/index.ts";
 import type { AcStamp, Device, DeviceEnv, IntegrationMethod, MatrixStamp } from "./base.ts";
@@ -28,7 +29,7 @@ const CNT = 5;
 const INDUCTOR_STATE_SLOTS = 6;
 
 export function inductorDevice(ce: CompiledElement): Device {
-  const l = ce.value as number;
+  let l = ce.value as number;
   const p = ce.nodes[0] as number;
   const n = ce.nodes[1] as number;
   const br = ce.branch as number;
@@ -96,6 +97,23 @@ export function inductorDevice(ce: CompiledElement): Device {
     lteMagnitude(env: DeviceEnv): number {
       // The LTE quantity is a voltage; compare against the device voltage.
       return abs(env.state[env.stateBase + V0] as number);
+    },
+    setLiveParam(property, value, _time): void {
+      if (property !== "value") {
+        throw new EngineError({
+          code: "E_PARSE",
+          message: `${ce.name}: inductors support only "value" (got "${property}")`,
+          location: { elementName: ce.name },
+        });
+      }
+      if (!(value >= 0)) {
+        throw new EngineError({
+          code: "E_PARSE",
+          message: `${ce.name}: inductance must be >= 0, got ${value}`,
+          location: { elementName: ce.name },
+        });
+      }
+      l = value;
     },
   };
 }

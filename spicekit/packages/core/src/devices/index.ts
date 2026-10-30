@@ -19,22 +19,28 @@ import { mutualDevice } from "./mutual.ts";
 import { resistorDevice } from "./resistor.ts";
 import { sourceDevice } from "./sources.ts";
 import { switchDevice } from "./switches.ts";
+import { type ExternalChannels, nullExternals } from "./waveform.ts";
 
 export type {
   AcStamp,
   Device,
   DeviceEnv,
   IntegrationMethod,
+  LiveParamProperty,
   LteUnit,
   MatrixStamp,
   NoiseSource,
 } from "./base.ts";
+export type { ExternalChannels } from "./waveform.ts";
 
 /** Build the device list from compiled elements, in element order. */
-export function buildDevices(compiled: CompiledCircuit): Device[] {
+export function buildDevices(
+  compiled: CompiledCircuit,
+  externals: ExternalChannels = nullExternals,
+): Device[] {
   const devices: Device[] = [];
   for (const ce of compiled.elements) {
-    const device = buildOne(ce, compiled);
+    const device = buildOne(ce, compiled, externals);
     if (device !== undefined) {
       devices.push(device);
     }
@@ -42,7 +48,11 @@ export function buildDevices(compiled: CompiledCircuit): Device[] {
   return devices;
 }
 
-function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | undefined {
+function buildOne(
+  ce: CompiledElement,
+  compiled: CompiledCircuit,
+  externals: ExternalChannels,
+): Device | undefined {
   switch (ce.type) {
     case "R":
       return resistorDevice(ce, compiled.options);
@@ -54,7 +64,7 @@ function buildOne(ce: CompiledElement, compiled: CompiledCircuit): Device | unde
       return mutualDevice(ce, compiled);
     case "V":
     case "I":
-      return sourceDevice(ce, compiled);
+      return sourceDevice(ce, compiled, externals);
     case "E":
     case "G":
     case "F":
