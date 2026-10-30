@@ -1,0 +1,12 @@
+node_modules
+dist
+**/dist
+.git
+circuit-studio/node_modules
+circuit-studio/dist
+spicekit/**/node_modules
+spicekit/**/dist
+*.md
+!README.md
+.github
+docs

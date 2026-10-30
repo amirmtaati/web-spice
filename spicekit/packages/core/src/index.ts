@@ -66,4 +66,4 @@ export {
   type SessionClock,
   type SessionOptions,
 } from "./session.ts";
-export { luFactor, luSolve } from "./solver/index.ts";
+export { luFactor, luSolve, SparseLU, type SparsityPattern, SymbolicLU } from "./solver/index.ts";

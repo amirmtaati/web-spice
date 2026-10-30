@@ -252,7 +252,7 @@ C1 out 0 1u
     vin.sort((a, b) => a.t - b.t);
     let maxJump = 0;
     for (let k = 1; k < vin.length; k++) {
-      maxJump = Math.max(maxJump, Math.abs(vin[k]!.v - vin[k - 1]!.v));
+      maxJump = Math.max(maxJump, Math.abs(vin[k]?.v - vin[k - 1]?.v));
     }
     // Smooth slew for the 1 kHz segment: 2π·1000·1e-5 ≈ 0.063 V/sample.
     expect(maxJump).toBeLessThan(0.07);
