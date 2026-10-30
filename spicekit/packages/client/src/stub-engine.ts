@@ -4,6 +4,8 @@
  * shell, conformance suite, and CI pipeline are real end-to-end from P0.
  * Responses are marked STUB; milestone E1 replaces this with the core engine.
  */
+
+import { evaluateExpression } from "@spicekit/core";
 import {
   type Circuit,
   type ClientToEngine,
@@ -102,7 +104,6 @@ export class StubEngine {
       case "control":
       case "setParam":
       case "setExternal":
-      case "evaluate":
       case "exportSpice": {
         reply({
           id: message.id,
@@ -112,6 +113,48 @@ export class StubEngine {
             message: `"${message.type}" is not implemented by the stub engine.`,
           }).toJSON(),
         });
+        return;
+      }
+      case "evaluate": {
+        // E3: expression evaluation for math channels. Context entries map
+        // "v(node)"/"i(elem)" strings to the respective tables; bare names
+        // become parameters.
+        const { expr, context } = message.payload;
+        const voltages: Record<string, number> = {};
+        const currents: Record<string, number> = {};
+        const params: Record<string, number> = {};
+        for (const [key, value] of Object.entries(context ?? {})) {
+          const mv = /^v\((.+)\)$/.exec(key.toLowerCase());
+          const mi = /^i\((.+)\)$/.exec(key.toLowerCase());
+          if (mv !== null) {
+            voltages[(mv[1] as string).toLowerCase()] = value;
+          } else if (mi !== null) {
+            currents[(mi[1] as string).toLowerCase()] = value;
+          } else {
+            params[key.toLowerCase()] = value;
+          }
+        }
+        try {
+          const value = evaluateExpression(expr, {
+            voltages,
+            currents,
+            params,
+          });
+          reply({
+            id: message.id,
+            type: "evaluateResult",
+            payload: { ok: true, value },
+          });
+        } catch (error) {
+          reply({
+            id: message.id,
+            type: "error",
+            payload:
+              error instanceof EngineError
+                ? error.toJSON()
+                : new EngineError({ code: "E_PARSE", message: (error as Error).message }).toJSON(),
+          });
+        }
         return;
       }
     }

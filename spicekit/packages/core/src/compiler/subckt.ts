@@ -267,7 +267,7 @@ function rewriteElement(
       return {
         type: "K",
         name: rename(el.name),
-        inductors: [rename(el.inductors[0] as string), rename(el.inductors[1] as string)],
+        inductors: [rename(el.inductors[0]), rename(el.inductors[1])],
         coupling: el.coupling,
       };
     case "V":
@@ -352,7 +352,7 @@ function rewriteElement(
         type: "W",
         name: rename(el.name),
         n: nodes2(el.n),
-        control: rename(el.control as string),
+        control: rename(el.control),
         model: mapModel(el.model),
         ...(el.on !== undefined ? { on: el.on } : {}),
       };

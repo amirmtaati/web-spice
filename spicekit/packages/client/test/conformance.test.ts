@@ -34,3 +34,28 @@ describe("in-process transport conformance", () => {
     }
   });
 });
+
+describe("evaluate message (E3)", () => {
+  test("evaluate returns the computed value over the supplied context", async () => {
+    const client = createInProcessClient();
+    try {
+      await client.connect();
+      const value = await client.evaluate("v(out) * 2 + gain", { "v(out)": 1.5, gain: 0.5 });
+      expect(value).toBeCloseTo(3.5, 12);
+    } finally {
+      client.dispose();
+    }
+  });
+
+  test("evaluate surfaces typed engine errors for bad expressions", async () => {
+    const client = createInProcessClient();
+    try {
+      await client.connect();
+      await expect(client.evaluate("v(nowhere)", {})).rejects.toMatchObject({
+        name: "EngineError",
+      });
+    } finally {
+      client.dispose();
+    }
+  });
+});

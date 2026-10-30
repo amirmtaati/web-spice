@@ -78,6 +78,11 @@ export interface SimulatorClient {
   loadCircuit(circuit: Circuit): Promise<LoadResult>;
   loadSpice(text: string): Promise<LoadResult>;
   run(req: RunRequest): RunHandle;
+  /**
+   * Evaluate an expression against a math-channel context (E3, SPEC §4.3).
+   * Context keys: "v(node)", "i(elem)", or bare parameter names.
+   */
+  evaluate(expr: string, context?: Record<string, number>): Promise<number>;
   dispose(): void;
 }
 
@@ -151,6 +156,26 @@ export class SimulatorClientImpl implements SimulatorClient {
       payload: { text },
     });
     return this.expectLoadResult(reply);
+  }
+
+  async evaluate(expr: string, context?: Record<string, number>): Promise<number> {
+    const payload: { expr: string; context?: Record<string, number> } = { expr };
+    if (context !== undefined) {
+      payload.context = context;
+    }
+    const reply = await this.request({ id: this.nextRequestId(), type: "evaluate", payload });
+    if (reply.type !== "evaluateResult") {
+      throw reply.type === "error"
+        ? new EngineError({
+            code: reply.payload.code,
+            message: reply.payload.message,
+          })
+        : new EngineError({
+            code: "E_PROTOCOL_VERSION",
+            message: `Unexpected evaluate reply: ${reply.type}`,
+          });
+    }
+    return reply.payload.value;
   }
 
   run(req: RunRequest): RunHandle {
@@ -371,4 +396,5 @@ type ClientRequestMessage =
       type: "run";
       payload: { analysis: AnalysisRequest; stream?: StreamOptions; probes?: ProbeSpec[] };
     }
-  | { id: string; type: "control"; payload: { runId: string; op: RunControlOp } };
+  | { id: string; type: "control"; payload: { runId: string; op: RunControlOp } }
+  | { id: string; type: "evaluate"; payload: { expr: string; context?: Record<string, number> } };

@@ -45,7 +45,7 @@ export function compileExpression(src: string): EvalFn {
   if (end.type !== "end") {
     throw new ExpressionError(`Unexpected token "${end.text}"`, end.pos);
   }
-  return fn as EvalFn;
+  return fn;
 }
 
 /**
@@ -62,7 +62,7 @@ export function compileExpressionDual(src: string): CompiledDualExpression {
   if (end.type !== "end") {
     throw new ExpressionError(`Unexpected token "${end.text}"`, end.pos);
   }
-  return { fn: fn as DualAlgebraFn, operands: dual.operands, nSlots: dual.nSlots };
+  return { fn: fn, operands: dual.operands, nSlots: dual.nSlots };
 }
 
 /**

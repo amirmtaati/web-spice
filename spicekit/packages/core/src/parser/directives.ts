@@ -468,7 +468,7 @@ function parseNoise(card: LexCard): AnalysisRequest {
     );
   }
   const source = (t[idx] as CardToken).text;
-  const sweepTok = t[idx + 1] as CardToken | undefined;
+  const sweepTok = t[idx + 1];
   const sweep = (sweepTok?.text ?? "").toLowerCase();
   if (sweep !== "dec" && sweep !== "oct" && sweep !== "lin") {
     throw new FAIL(
@@ -537,7 +537,7 @@ function parseMeasure(card: LexCard, acc: ParseAccumulator): void {
       1,
     );
   }
-  const analysis = analysisRaw as "tran" | "ac" | "dc" | "op";
+  const analysis = analysisRaw;
   const name = (t[2] as CardToken).text;
   const modeRaw = (t[3] as CardToken).text.toLowerCase();
 
@@ -594,7 +594,7 @@ function parseMeasure(card: LexCard, acc: ParseAccumulator): void {
         if (eq >= 0) {
           wvalue = wref.slice(eq + 1);
           wref = wref.slice(0, eq);
-        } else if ((t[i] as CardToken | undefined)?.text === "=") {
+        } else if (t[i]?.text === "=") {
           i += 1;
           wvalue = (t[i] as CardToken).text;
           i += 1;
@@ -606,7 +606,7 @@ function parseMeasure(card: LexCard, acc: ParseAccumulator): void {
         continue;
       }
       if (kw === "rise" || kw === "fall" || kw === "cross") {
-        const edge = kw as "rise" | "fall" | "cross";
+        const edge = kw;
         if (spec.when === undefined) {
           throw new FAIL(`.measure ${kw.toUpperCase()} requires a WHEN clause`, card.startLine, 1);
         }

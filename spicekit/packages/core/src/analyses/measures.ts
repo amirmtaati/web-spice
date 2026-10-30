@@ -207,7 +207,9 @@ function windowMeasure(spec: MeasureSpec, axis: Float64Array, values: Float64Arr
       return { name: spec.name, value: max - min, found: true };
     case "integ":
       return { name: spec.name, value: integral, found: true };
-    default:
+    case "find":
+      // Unreachable: evaluate() routes FIND to findMeasure(). Kept so the
+      // switch stays exhaustive over MeasureSpec["mode"].
       return { name: spec.name, value: Number.NaN, found: false };
   }
 }

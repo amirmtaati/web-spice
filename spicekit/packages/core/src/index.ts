@@ -25,6 +25,7 @@ export {
   ParamScope,
   resolveExpr,
 } from "./eval/index.ts";
+export { type EvaluateOptions, evaluateExpression } from "./evaluate.ts";
 export {
   abs,
   cos,

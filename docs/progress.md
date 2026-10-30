@@ -2,6 +2,83 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## E3 — AC, noise, behavioral (2026-10-30)
+
+**Status: complete.** Complex solver, `.ac`, `.tf`, `.noise`, behavioral B
+sources with AD, subcircuits, basic `.measure`, `evaluate` message
+(SPEC §22 E3).
+
+### What landed
+
+- **Complex LU** (§13.2.1): `Complex` value type, complex LU factor/solve
+  with the same zero-hot-path-allocation discipline as the real kernel;
+  1/z gmin on every node for AC singularity robustness.
+- **`.ac` analysis** (§5.5): dec/lin/oct sweeps with ngspice point counts,
+  AC source phasors (independent V/I, B linearized), linear devices
+  (R/C/L/K/E/F/G/H, switches at their OP state) stamped directly in ℂ;
+  probe aliases `vm/vp/vdb/im` on AC results.
+- **Nonlinear AC linearization** (§5.5): every D/Q/M/J/S/W is linearized
+  about its DC operating point (transconductance + junction/parasitic
+  capacitance stamps) so real circuits — diode mixers, CE stages, CMOS
+  inverters — get correct small-signal responses.
+- **Behavioral B sources** (§5.7): arbitrary expressions of node
+  voltages/branch currents/time with exact derivatives via dual-number
+  automatic differentiation (no hand-coded Jacobians); DC, transient and
+  AC (operand-linearization) support; tables, `pwrs`, tempco math.
+- **Subcircuits** (§5.2/§5.7): `.subckt/.ends` flattening with classic
+  SPICE hierarchy — positional port mapping, path-prefixed names
+  (`x1.x2.r3`), ngspice parameter order (instance overrides → subckt
+  defaults → global `.param`), model hoisting with instance-frozen
+  expression models, nesting to depth 64 / 50k element caps. Built-in
+  op-amp macromodels `OPAMP_IDEAL` and `OPAMP1P` (A0/GBW/ROUT/RIN).
+- **`.tf`** (§5.5): transfer function V(n_out)/V(n_in) or I(n_in) with
+  input and output resistance, via one complex solve per driven port.
+- **`.noise`** (§5.5): input- and output-referred noise spectra via the
+  adjoint method; thermal (R), shot + flicker (D/Q/M/J) noise models;
+  `inoise`/`onoise` spectra and integrated values.
+- **`.measure`** (§5.5 "basic"): FIND AT, FIND WHEN [RISE|FALL|CROSS[=n]],
+  MAX/MIN/AVG/RMS/PP/INTEG with FROM/TO windows, interpolated crossings,
+  AC probe-alias lookup, `found=false` + NaN for unmatched conditions.
+- **`evaluate` message** (§4.3/§5.6): engine-side expression evaluation
+  through the same expression compiler used by `.param`/B sources;
+  case-insensitive `v()`/`i()` context lookups, parameter table, `time`;
+  typed `E_PARSE` errors; wired through client + stub engine with
+  conformance tests.
+- **Hygiene**: ESLint `switch-exhaustiveness-check` restored on
+  `.measure` window modes; 9 unnecessary type assertions removed
+  (eslint --fix); biome formatting normalized.
+
+### Acceptance (SPEC §22 E3)
+
+- **Active-filter Bode matches reference**: Sallen-Key unity-gain LPF
+  (equal R/C, built-in op-amp macromodel) — nodal analysis gives exactly
+  `H = 1/(1 + j·u)²`, `|H| = 1/(1+u²)`. Engine matches the hand formula
+  to <1e-4 relative across a 2.3-decade sweep; |H| crossings land at
+  0.5→f0 (Q signature), 1/√2→√(√2−1)·f0 (−3 dB), 1/101→10·f0 (−40 dB/dec);
+  `vdb` crosses −6.0206 dB at f0.
+- **Op-amp macromodel GBW verified**: OPAMP1P ×10 non-inverting stage
+  matches the exact closed-loop model `|kl·A(f)|/|1 + β·kl·A(f)|` to
+  <1e-4 across 1 kHz–10 MHz; DC gain ≈ 10; measured f3dB × |H_DC| =
+  GBW within 1% (gain-bandwidth product constant).
+
+### Verification
+
+- **120 E3 tests** (complex 6, ac 13, ac-nonlinear 7, tf 7, noise 7,
+  bsource 48, subckt 13, measures 5, evaluate 6, acceptance 5, compiler
+  +1, client conformance +2) — full suite **395 green** / 12,082
+  expect() calls.
+- Gates: biome clean, ESLint clean (type-aware), `tsc -b` clean,
+  dependency-cruiser clean (251 modules, 576 dependencies).
+
+### Deferred / next up
+
+- E4: client transports (Worker/WebSocket), conformance across
+  transports, streaming, live `setParam`/`setExternal`, sparse LU with
+  symbolic reuse, `@spicekit/server`, chaos/resource-limit tests,
+  embedding examples.
+- ngspice golden-fixture pipeline (pinned ngspice) — infrastructure
+  ready, fixtures pending.
+
 ## E2 — Nonlinear devices (2026-10-29)
 
 **Status: complete.** D, BJT, MOSFET L1, JFET, switches; Newton with
