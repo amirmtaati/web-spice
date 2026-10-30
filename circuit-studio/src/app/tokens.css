@@ -1,0 +1,233 @@
+/*
+ * Studio DS tokens (UI-UX-SPEC §4.1) — CSS variables on :root[data-theme=…].
+ * Components consume tokens only; hardcoding a hex outside this file (and the
+ * test fixtures) is a CI failure. Three themes: dark (default), light, paper.
+ */
+
+/* ── Base (theme-independent structure) ─────────────────────────────────── */
+:root {
+  /* Typography */
+  --font-ui: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-schematic: "IBM Plex Sans", var(--font-ui);
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+
+  /* Radius / density / motion */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --ctl-h: 32px;
+  --row-h: 28px;
+  --dur-1: 80ms;
+  --dur-2: 160ms;
+  --dur-3: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ── Dark (default) ─────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="dark"] {
+  /* Semantic core */
+  --bg: #0d1117;
+  --bg-panel: #161b22;
+  --bg-elevated: #1c2128;
+  --canvas-bg: #0b0e13;
+  --fg: #e6edf3;
+  --fg-muted: #8b949e;
+  --fg-faint: #6e7681;
+  --border: #30363d;
+  --border-strong: #484f58;
+  --accent: #4f8ef7;
+  --accent-soft: #4f8ef722;
+  --accent-contrast: #0d1117;
+
+  /* State */
+  --ok: #3fd68f;
+  --ok-soft: #3fd68f26;
+  --warning: #f7b34f;
+  --warning-soft: #f7b34f26;
+  --error: #f76f6f;
+  --error-soft: #f76f6f26;
+  --info: #41c8f4;
+  --info-soft: #41c8f426;
+
+  /* Signal palette (traces, probes, badges) — ordered, WCAG AA on canvas */
+  --sig-1: #4f8ef7;
+  --sig-2: #f7b34f;
+  --sig-3: #3fd68f;
+  --sig-4: #f76f8e;
+  --sig-5: #b58ef7;
+  --sig-6: #41c8f4;
+  --sig-7: #d3f34f;
+  --sig-8: #f49f41;
+
+  /* Canvas semantics */
+  --wire: #7d8590;
+  --wire-selected: var(--accent);
+  --net-highlight: var(--accent);
+  --symbol-body: #e6edf3;
+  --symbol-fill: transparent;
+  --pin: #8b949e;
+  --pin-hover: var(--accent);
+  --junction: #8b949e;
+  --label: #e6edf3;
+  --power-net: #f76f6f;
+  --ground-net: #8b949e;
+  --error-marker: var(--error);
+  --warning-marker: var(--warning);
+  --ghost: #e6edf399;
+  --guide: #f74fd3;
+  --grid-dot: #232b36;
+
+  /* Voltage heat map (cold → hot, normalized to run min/max) */
+  --heat-1: #41c8f4;
+  --heat-2: #3fd68f;
+  --heat-3: #d3f34f;
+  --heat-4: #f49f41;
+  --heat-5: #f76f6f;
+
+  /* Elevation */
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Light ──────────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg: #f6f8fa;
+  --bg-panel: #ffffff;
+  --bg-elevated: #ffffff;
+  --canvas-bg: #eef1f4;
+  --fg: #1f2328;
+  --fg-muted: #57606a;
+  --fg-faint: #8c959f;
+  --border: #d0d7de;
+  --border-strong: #afb8c1;
+  --accent: #0969da;
+  --accent-soft: #0969da1a;
+  --accent-contrast: #ffffff;
+
+  --ok: #1a7f37;
+  --ok-soft: #1a7f3726;
+  --warning: #9a6700;
+  --warning-soft: #9a670026;
+  --error: #cf222e;
+  --error-soft: #cf222e26;
+  --info: #0a7c9e;
+  --info-soft: #0a7c9e26;
+
+  --sig-1: #0969da;
+  --sig-2: #9a6700;
+  --sig-3: #1a7f37;
+  --sig-4: #cf222e;
+  --sig-5: #8250df;
+  --sig-6: #0a7c9e;
+  --sig-7: #5a7a00;
+  --sig-8: #bc4c00;
+
+  --wire: #57606a;
+  --wire-selected: var(--accent);
+  --net-highlight: var(--accent);
+  --symbol-body: #1f2328;
+  --symbol-fill: transparent;
+  --pin: #57606a;
+  --pin-hover: var(--accent);
+  --junction: #57606a;
+  --label: #1f2328;
+  --power-net: #cf222e;
+  --ground-net: #57606a;
+  --error-marker: var(--error);
+  --warning-marker: var(--warning);
+  --ghost: #1f232899;
+  --guide: #d50f7f;
+  --grid-dot: #d8dee4;
+
+  --heat-1: #0969da;
+  --heat-2: #1a7f37;
+  --heat-3: #b58a00;
+  --heat-4: #bc4c00;
+  --heat-5: #cf222e;
+
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Paper (print/export; surfaces pure white/black) ────────────────────── */
+:root[data-theme="paper"] {
+  --bg: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-elevated: #ffffff;
+  --canvas-bg: #ffffff;
+  --fg: #000000;
+  --fg-muted: #444444;
+  --fg-faint: #767676;
+  --border: #000000;
+  --border-strong: #000000;
+  --accent: #000000;
+  --accent-soft: #00000014;
+  --accent-contrast: #ffffff;
+
+  --ok: #1a7f37;
+  --ok-soft: #1a7f3726;
+  --warning: #9a6700;
+  --warning-soft: #9a670026;
+  --error: #b30000;
+  --error-soft: #b3000026;
+  --info: #0a7c9e;
+  --info-soft: #0a7c9e26;
+
+  --sig-1: #1f4fd8;
+  --sig-2: #8a6100;
+  --sig-3: #116329;
+  --sig-4: #a40e26;
+  --sig-5: #6639ba;
+  --sig-6: #066a87;
+  --sig-7: #4d6600;
+  --sig-8: #a13d00;
+
+  --wire: #000000;
+  --wire-selected: #000000;
+  --net-highlight: #000000;
+  --symbol-body: #000000;
+  --symbol-fill: transparent;
+  --pin: #000000;
+  --pin-hover: #000000;
+  --junction: #000000;
+  --label: #000000;
+  --power-net: #b30000;
+  --ground-net: #595959;
+  --error-marker: #b30000;
+  --warning-marker: #9a6700;
+  --ghost: #00000099;
+  --guide: #b3005e;
+  --grid-dot: #d4d4d4;
+
+  --heat-1: #1f4fd8;
+  --heat-2: #116329;
+  --heat-3: #8a6100;
+  --heat-4: #a13d00;
+  --heat-5: #b30000;
+
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.25);
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Density ────────────────────────────────────────────────────────────── */
+:root[data-density="compact"] {
+  --ctl-h: 26px;
+  --row-h: 24px;
+}
+
+/* ── Reduced motion (global kill switch; UI-UX-SPEC §8) ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+  }
+}

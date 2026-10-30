@@ -4,16 +4,19 @@ import { defineConfig } from "@playwright/test";
 // installed with `bunx playwright install`; CI wiring lands with the U-track.
 export default defineConfig({
   testDir: "e2e",
+  // Bun's test glob matches *.spec.ts, so Playwright suites use *.e2e.ts
+  // (ADR 007) to keep `bun test circuit-studio` free of browser suites.
+  testMatch: "**/*.e2e.ts",
   timeout: 30_000,
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
   },
   webServer: {
-    command: "bun --bun run vite --port 5173 --strictPort",
+    command: "bun run build && bun --bun run vite preview --port 5173 --strictPort",
     url: "http://localhost:5173",
-    reuseExistingServer: true,
-    timeout: 60_000,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
   },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
 });

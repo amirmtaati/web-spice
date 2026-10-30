@@ -94,4 +94,27 @@ export default tseslint.config(
       "no-restricted-imports": "off",
     },
   },
+  {
+    // Colocated UI tests run under `bun test` and may import bun:test — the only
+    // bun module allowed in circuit-studio/src (node stays blocked).
+    files: [
+      "circuit-studio/src/**/*.test.ts",
+      "circuit-studio/src/**/*.test.tsx",
+      "circuit-studio/src/test/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["node:*", "node"],
+              message:
+                "Tests must not import node built-ins (SPEC §2.2); bun:test is the allowed test runner import.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

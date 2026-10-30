@@ -5,7 +5,8 @@
     "outDir": "dist",
     "rootDir": ".",
     "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["@types/bun"]
   },
   "references": [{ "path": "../spicekit/packages/client" }, { "path": "./tsconfig.node.json" }]
 }

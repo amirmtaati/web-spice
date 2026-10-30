@@ -43,7 +43,7 @@ module.exports = {
       comment:
         "protocol/core/client and UI code are browser-target (SPEC §2.2); test files run under bun:test and are exempt.",
       from: {
-        path: "^(spicekit/packages/(protocol|core|client)/src|circuit-studio/src)",
+        path: "^(spicekit/packages/(protocol|core|client)/src|circuit-studio/src)(?!.+\\.(test|e2e)\\.(ts|tsx))",
       },
       to: { path: "^(bun|node):" },
     },

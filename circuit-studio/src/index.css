@@ -1,40 +1,53 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "./app/tokens.css";
 
 /*
- * Design tokens (SPEC §9.12) as CSS variables — dark (default), light, and
- * Paper themes. The full token set (wire/symbol/pin/junction colors, spacing,
- * radii, elevation) lands with the editor milestones U1–U3.
+ * Tailwind theme mapping (UI-UX-SPEC §4.1): Studio tokens exposed as
+ * utilities (bg-panel, text-muted, border-line, font-mono, …). Components
+ * reference tokens, never raw hex values.
  */
-:root,
-:root[data-theme="dark"] {
-  --bg: #0d1117;
-  --bg-panel: #161b22;
-  --fg: #e6edf3;
-  --fg-muted: #8b949e;
-  --accent: #4f8ef7;
-  --canvas-bg: #0b0e13;
-  --border: #30363d;
-}
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--bg-panel);
+  --color-elevated: var(--bg-elevated);
+  --color-canvas: var(--canvas-bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-faint: var(--fg-faint);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-error: var(--error);
+  --color-error-soft: var(--error-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
 
-:root[data-theme="light"] {
-  --bg: #f6f8fa;
-  --bg-panel: #ffffff;
-  --fg: #1f2328;
-  --fg-muted: #656d76;
-  --accent: #0969da;
-  --canvas-bg: #eef1f4;
-  --border: #d0d7de;
-}
+  --font-ui: var(--font-ui);
+  --font-mono: var(--font-mono);
+  --font-schematic: var(--font-schematic);
 
-/* Print/export "Paper" theme (SPEC §9.12): white, black lines. */
-:root[data-theme="paper"] {
-  --bg: #ffffff;
-  --bg-panel: #ffffff;
-  --fg: #000000;
-  --fg-muted: #444444;
-  --accent: #000000;
-  --canvas-bg: #ffffff;
-  --border: #000000;
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+
+  --text-2xs: var(--fs-2xs);
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-base: var(--fs-base);
+  --text-md: var(--fs-md);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
 }
 
 html,
@@ -47,8 +60,73 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  font-feature-settings: "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numeric readouts: tabular digits, never reflow on digit change (§4.1). */
+.num,
+code,
+kbd {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus is always visible (§9.1): 2px accent ring at 2px offset. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* Theme switch is instant (§4.2) — no transition on root surfaces. */
+:root[data-theme] {
+  transition: none;
+}
+
+/* Studio motion keyframes (§8): short, purposeful. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+@keyframes value-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

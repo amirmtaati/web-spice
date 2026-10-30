@@ -4,7 +4,7 @@
     "spicekit/packages/*/src/index.ts",
     "spicekit/scripts/*.ts",
     "circuit-studio/src/main.tsx",
-    "circuit-studio/e2e/*.spec.ts"
+    "circuit-studio/e2e/*.e2e.ts"
   ],
   "project": ["spicekit/packages/*/src/**/*.ts", "circuit-studio/src/**/*.{ts,tsx}"],
   "ignore": ["**/test/**", "**/dist/**"],
