@@ -55,6 +55,7 @@ export type {
   SpiceMsg,
 } from "./messages.ts";
 export {
+  ackPayload,
   circuitSchema,
   controlPayload,
   errorPayloadSchema,

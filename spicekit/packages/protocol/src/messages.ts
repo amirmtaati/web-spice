@@ -197,7 +197,8 @@ export type EngineToClient =
   | DoneMsg
   | ErrorMsg
   | SpiceMsg
-  | EvaluateResultMsg;
+  | EvaluateResultMsg
+  | AckMsg;
 
 /** `loadCircuit`/`loadSpice` replies reuse the load result payload. */
 export interface LoadResultPayloadMsg {
@@ -216,4 +217,11 @@ export interface EvaluateResultMsg {
   id: string;
   type: "evaluateResult";
   payload: EvaluateResultPayload;
+}
+
+/** Positive ack for control/setParam/setExternal (E4, SPEC §4.3/§4.4). */
+export interface AckMsg {
+  id: string;
+  type: "ack";
+  payload: { ok: true; op: string; runId?: string };
 }

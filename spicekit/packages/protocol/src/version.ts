@@ -4,7 +4,7 @@
  * Rules (SPEC §6): minors add; majors may break with a migration guide;
  * deprecations last at least two minors with runtime warnings.
  */
-export const PROTOCOL_VERSION = "0.1.0" as const;
+export const PROTOCOL_VERSION = "0.2.0" as const;
 
 /** Returns true when a peer announcing `peerVersion` can talk to us. */
 export function isCompatibleProtocol(peerVersion: string): boolean {

@@ -154,11 +154,12 @@ function serializeWave(w: Waveform): string {
       return `PULSE(${[w.v1, w.v2, w.delay, w.rise, w.fall, w.width, w.period].map((x) => val(x)).join(" ")})`;
     case "PWL":
       return `PWL(${w.points.map(([t, v]) => `${formatExact(t)} ${formatExact(v)}`).join(" ")}${w.repeat === true ? " REPEAT" : ""})`;
+    case "EXTERNAL":
+      return `EXTERNAL(${w.channel})`;
     case "EXP":
     case "SFFM":
     case "AM":
     case "NOISE":
-    case "EXTERNAL":
     case "TRIANGLE":
     case "SAWTOOTH":
     case "SQUARE":

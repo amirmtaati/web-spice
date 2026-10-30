@@ -13,11 +13,13 @@ import { applyMeasures } from "./measures.ts";
 import { noiseSignals, noiseStats, runNoise } from "./noise.ts";
 import { runOp } from "./op.ts";
 import type { AnalysisKind, RunResult, SignalSeries } from "./result.ts";
+import { probeWanted, signalIndex, signalNamesFor } from "./signals.ts";
 import { runTf, tfSignals, tfStats } from "./tf.ts";
 import { runTransient } from "./tran.ts";
 import { Workspace } from "./workspace.ts";
 
 export type { AnalysisKind, RunResult, SignalSeries } from "./result.ts";
+export { signalIndex, signalNamesFor } from "./signals.ts";
 export { TranStepper } from "./tran.ts";
 
 export interface AnalysisProgress {
@@ -147,23 +149,6 @@ function runOpAnalysis(ws: Workspace, options: SimOptions): RunResult {
   };
 }
 
-/** All default signals: v(node) for every node, i(element) per branch. */
-function signalNamesFor(ws: Workspace): string[] {
-  const names: string[] = [];
-  for (const node of ws.compiled.nodeNames) {
-    names.push(`v(${node.toLowerCase()})`);
-  }
-  for (const owner of ws.compiled.branchOwners) {
-    // Device-internal KCL nodes (BJT b'/c'/e') are solver bookkeeping,
-    // not probeable currents.
-    if (owner.includes("#internal")) {
-      continue;
-    }
-    names.push(`i(${owner.toLowerCase()})`);
-  }
-  return names;
-}
-
 function runDcAnalysis(
   ws: Workspace,
   options: SimOptions,
@@ -243,31 +228,10 @@ function runTranAnalysis(
   };
 }
 
-/** Probe filter: null = all signals. */
-function probeWanted(ws: Workspace): Set<string> | undefined {
-  const probes = ws.compiled.probes;
-  return probes.length > 0 ? new Set(probes.map((pr) => pr.signal.toLowerCase())) : undefined;
-}
-
 /** Fill signals[p] from the current ws.x. */
 function fillSignals(signals: SignalSeries[], p: number, ws: Workspace): void {
   for (const sig of signals) {
     const idx = signalIndex(sig.name, ws);
     sig.values[p] = idx >= 0 ? (ws.x[idx] as number) : Number.NaN;
   }
-}
-
-function signalIndex(name: string, ws: Workspace): number {
-  if (name.startsWith("v(")) {
-    return ws.nodeIndexOf(name.slice(2, -1));
-  }
-  if (name.startsWith("i(")) {
-    const owner = name.slice(2, -1).toLowerCase();
-    const branchIdx = ws.compiled.branchOwners.findIndex((o) => o.toLowerCase() === owner);
-    if (branchIdx === -1) {
-      return -1;
-    }
-    return ws.nodeCount + branchIdx;
-  }
-  return -1;
 }

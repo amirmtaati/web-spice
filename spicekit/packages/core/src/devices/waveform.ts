@@ -15,8 +15,11 @@ export type LiveWaveProperty = "amplitude" | "frequency" | "offset" | "dutyCycle
 
 /** Registry of live EXTERNAL channel values (SPEC §4.4 setExternal). */
 export interface ExternalChannels {
-  /** Value of `channel` right now (zero-order hold); 0 when unset. */
-  value(channel: string): number;
+  /**
+   * Value of `channel` at sim-time t (zero-order hold); 0 when unset.
+   * `t` lets series channels play sample k from tStart + k·tStep.
+   */
+  value(channel: string, t?: number): number;
   /**
    * Replace the channel's sample series: sample k applies from
    * tStart + k·tStep (zero-order hold), holding the last value forever.
@@ -288,8 +291,8 @@ function pwlEval(w: Extract<ResolvedWave, { kind: "PWL" }>): WaveEval {
 function externalEval(channel: string, externals: ExternalChannels): WaveEval {
   const key = channel.toLowerCase();
   return {
-    valueAt(_t: number): number {
-      return externals.value(key);
+    valueAt(t: number): number {
+      return externals.value(key, t);
     },
     nextBreakpoint(): number | undefined {
       return undefined;

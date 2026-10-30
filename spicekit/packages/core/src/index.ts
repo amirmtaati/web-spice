@@ -9,6 +9,7 @@ export {
   type RunResult,
   runAnalysis,
   type SignalSeries,
+  TranStepper,
 } from "./analyses/index.ts";
 export { type CompiledCircuit, type CompiledElement, compile } from "./compiler/index.ts";
 export {
@@ -58,4 +59,11 @@ export {
   serializeNetlist,
   tryParseNetlist,
 } from "./parser/index.ts";
+export {
+  type EngineReply,
+  EngineSession,
+  hostClock,
+  type SessionClock,
+  type SessionOptions,
+} from "./session.ts";
 export { luFactor, luSolve } from "./solver/index.ts";

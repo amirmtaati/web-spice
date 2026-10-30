@@ -1,8 +1,10 @@
 /**
- * Waveform source card parsing (SPEC §5.8): SIN, PULSE, PWL. Accepted forms:
- * `SIN(vo va freq [td [theta [phase]]])`, `PULSE(v1 v2 td tr tf pw per)`,
- * `PWL(t1 v1 t2 v2 ...)`. Parentheses are optional; arguments may span
- * continuation lines (already merged into the card by the lexer).
+ * Waveform source card parsing (SPEC §5.8): SIN, PULSE, PWL, EXTERNAL.
+ * Accepted forms: `SIN(vo va freq [td [theta [phase]]])`,
+ * `PULSE(v1 v2 td tr tf pw per)`, `PWL(t1 v1 t2 v2 ...)`, and
+ * `EXTERNAL(chan)` (E4 — live host-driven channel, SPEC §4.4). Parentheses
+ * are optional except for EXTERNAL; arguments may span continuation lines
+ * (already merged into the card by the lexer).
  */
 
 import type { Waveform } from "@spicekit/protocol";
@@ -17,7 +19,7 @@ interface WaveformMatch {
   consumed: number;
 }
 
-const WAVE_KEYWORDS: readonly string[] = ["sin", "pulse", "pwl"];
+const WAVE_KEYWORDS: readonly string[] = ["sin", "pulse", "pwl", "external"];
 
 /** If the token opens a waveform (`SIN...`), parse it; else undefined. */
 export function matchWaveform(tokens: CardToken[], start: number): WaveformMatch | undefined {
@@ -33,7 +35,9 @@ export function matchWaveform(tokens: CardToken[], start: number): WaveformMatch
       ? parseSin(args, tokens[start] as CardToken)
       : kind === "pulse"
         ? parsePulse(args, tokens[start] as CardToken)
-        : parsePwl(args, tokens[start] as CardToken);
+        : kind === "external"
+          ? parseExternal(args, tokens[start] as CardToken)
+          : parsePwl(args, tokens[start] as CardToken);
   // PWL postfix: REPEAT may follow the argument list outside the parens.
   if (kind === "pwl" && wave.kind === "PWL" && wave.repeat !== true) {
     const peek = tokens[start + consumed];
@@ -79,10 +83,13 @@ function collectArgs(tokens: CardToken[], start: number, open: string): Collecte
         (tokens[start] as CardToken).col,
       );
     }
-    // Fully closed: cut at the last ')'. Unclosed: strip the leading '('
-    // (e.g. "SIN(0 1 1k)" head leaves open="(0").
+    // Fully closed: cut at the last ')' and strip a leading '('
+    // (e.g. "EXTERNAL(gen)" arrives as one glued head token).
+    // Unclosed: strip the leading '(' (e.g. "SIN(0" head leaves open="(0").
     const inner =
-      openParens === 0 ? open.slice(0, open.lastIndexOf(")")) : open.replace(/^\(+/, "");
+      openParens === 0
+        ? open.slice(open.startsWith("(") ? 1 : 0, open.lastIndexOf(")"))
+        : open.replace(/^\(+/, "");
     pushPacked(inner);
     first = false;
     i = start + 1;
@@ -152,6 +159,18 @@ function value(token: string, where: CardToken, what: string): number {
   } catch {
     throw new NetlistSyntaxError(`Invalid ${what} "${token}" in waveform`, where.line, where.col);
   }
+}
+
+function parseExternal(args: CollectedArgs, where: CardToken): Waveform {
+  const v = args.values;
+  if (v.length !== 1) {
+    throw new NetlistSyntaxError(
+      "EXTERNAL expects exactly one channel argument: EXTERNAL(chan)",
+      where.line,
+      where.col,
+    );
+  }
+  return { kind: "EXTERNAL", channel: v[0] as string };
 }
 
 function parseSin(args: CollectedArgs, where: CardToken): Waveform {

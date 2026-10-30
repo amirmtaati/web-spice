@@ -15,6 +15,7 @@ import {
   type EngineLimits,
   type EngineToClient,
   isCompatibleProtocol,
+  type ParamTarget,
   PROTOCOL_VERSION,
   type ProbeSpec,
   type RunStats,
@@ -69,6 +70,10 @@ export interface RunHandle {
   resume(): void;
   stop(): void;
   step(): void;
+  /** Live parameter change (SPEC §4.4); applies at the next accepted step. */
+  setParam(target: ParamTarget, value: number): Promise<void>;
+  /** Feed an EXTERNAL channel (SPEC §4.4). */
+  setExternal(channel: string, v: number | number[]): Promise<void>;
   done: Promise<RunStats>;
 }
 
@@ -83,6 +88,8 @@ export interface SimulatorClient {
    * Context keys: "v(node)", "i(elem)", or bare parameter names.
    */
   evaluate(expr: string, context?: Record<string, number>): Promise<number>;
+  /** Export the loaded circuit back to SPICE text (SPEC §4.3). */
+  exportSpice(): Promise<string>;
   dispose(): void;
 }
 
@@ -176,6 +183,22 @@ export class SimulatorClientImpl implements SimulatorClient {
           });
     }
     return reply.payload.value;
+  }
+
+  async exportSpice(): Promise<string> {
+    const reply = await this.request({ id: this.nextRequestId(), type: "exportSpice" });
+    if (reply.type !== "spice") {
+      throw reply.type === "error"
+        ? new EngineError({
+            code: reply.payload.code,
+            message: reply.payload.message,
+          })
+        : new EngineError({
+            code: "E_PROTOCOL_VERSION",
+            message: `Unexpected exportSpice reply: ${reply.type}`,
+          });
+    }
+    return reply.payload.text;
   }
 
   run(req: RunRequest): RunHandle {
@@ -276,6 +299,18 @@ export class SimulatorClientImpl implements SimulatorClient {
       resume: () => this.sendControl(entry, "resume"),
       stop: () => this.sendControl(entry, "stop"),
       step: () => this.sendControl(entry, "step"),
+      setParam: async (target: ParamTarget, value: number): Promise<void> => {
+        await this.runRequest({
+          type: "setParam",
+          payload: { runId: entry.acceptedRunId ?? "", target, value },
+        });
+      },
+      setExternal: async (channel: string, v: number | number[]): Promise<void> => {
+        await this.runRequest({
+          type: "setExternal",
+          payload: { runId: entry.acceptedRunId ?? "", channel, value: v },
+        });
+      },
       get done(): Promise<RunStats> {
         return new Promise<RunStats>((resolve, reject) => {
           entry.resolveDone = resolve;
@@ -285,13 +320,25 @@ export class SimulatorClientImpl implements SimulatorClient {
     };
   }
 
+  /** Fire-and-forget run control (failures surface through `done`). */
   private sendControl(entry: RunEntry, op: RunControlOp): void {
-    void this.request({
-      id: this.nextRequestId(),
+    void this.runRequest({
       type: "control",
       payload: { runId: entry.acceptedRunId ?? "", op },
-    }).catch(() => {
-      // Run-control failures surface through `done`, not from control calls.
+    }).catch(() => {});
+  }
+
+  /** Correlated request inside a run; resolves on the ack/reply. */
+  private runRequest(part: {
+    type: "control" | "setParam" | "setExternal";
+    payload: unknown;
+  }): Promise<EngineToClient> {
+    const id = this.nextRequestId();
+    return this.request({ id, ...part } as ClientRequestMessage).then((reply) => {
+      if (reply.type === "error") {
+        throw new EngineError(reply.payload);
+      }
+      return reply;
     });
   }
 
@@ -397,4 +444,15 @@ type ClientRequestMessage =
       payload: { analysis: AnalysisRequest; stream?: StreamOptions; probes?: ProbeSpec[] };
     }
   | { id: string; type: "control"; payload: { runId: string; op: RunControlOp } }
-  | { id: string; type: "evaluate"; payload: { expr: string; context?: Record<string, number> } };
+  | {
+      id: string;
+      type: "setParam";
+      payload: { runId: string; target: ParamTarget; value: number };
+    }
+  | {
+      id: string;
+      type: "setExternal";
+      payload: { runId: string; channel: string; value: number | number[] };
+    }
+  | { id: string; type: "evaluate"; payload: { expr: string; context?: Record<string, number> } }
+  | { id: string; type: "exportSpice" };

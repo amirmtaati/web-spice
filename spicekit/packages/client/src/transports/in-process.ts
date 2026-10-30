@@ -1,15 +1,16 @@
 /**
- * In-process transport (SPEC §2.1): direct function-call delivery, used by
- * tests, the CLI, and (transiently) the UI shell until the worker transport
- * lands. Delivery is async (microtask) so request/response correlation code
- * paths are identical to the async transports.
+ * In-process transport (SPEC §2.1): direct function-call delivery to a real
+ * `EngineSession` (E4). Used by tests, the CLI, and hosts that don't need
+ * worker isolation. Delivery is async (microtask) so request/response
+ * correlation behaves like the async transports; the session's live-run
+ * ticks flow through the stable reply closure after handle() returns.
  */
+import { EngineSession, hostClock } from "@spicekit/core";
 import type { ClientToEngine, EngineToClient } from "@spicekit/protocol";
-import { StubEngine } from "../stub-engine.ts";
 import type { Transport } from "../transport.ts";
 
 export class InProcessTransport implements Transport {
-  private readonly engine = new StubEngine();
+  private readonly session = new EngineSession({ clock: hostClock() });
   private handler: ((message: EngineToClient) => void) | null = null;
 
   async start(): Promise<void> {
@@ -18,9 +19,10 @@ export class InProcessTransport implements Transport {
 
   send(message: ClientToEngine): void {
     // Microtask keeps ordering and gives callers a chance to attach handlers.
-    // (Promise.resolve().then == queueMicrotask, typed in every runtime lib.)
     void Promise.resolve().then(() => {
-      this.engine.handle(message, (reply) => {
+      // The reply closure delegates to the current handler — stable across
+      // messages, so the session may emit live-run events at any time.
+      this.session.handle(message, (reply) => {
         this.handler?.(reply);
       });
     });
@@ -32,5 +34,6 @@ export class InProcessTransport implements Transport {
 
   close(): void {
     this.handler = null;
+    this.session.dispose();
   }
 }

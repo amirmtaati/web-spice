@@ -239,3 +239,10 @@ export const errorPayloadSchema = z.object({
     })
     .optional(),
 });
+
+/** Positive acknowledgement for control/setParam/setExternal (E4). */
+export const ackPayload = z.object({
+  ok: z.literal(true),
+  op: z.string(),
+  runId: z.string().optional(),
+});
