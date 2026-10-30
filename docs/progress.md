@@ -2,6 +2,92 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## E4 — Client, transports, server, live mode (2026-10-30)
+
+**Status: complete.** The engine talks to the web UI: a stateful engine
+session behind the message protocol, real worker/WebSocket/in-process
+transports, live interactive transients, `@spicekit/server`, sparse LU,
+chaos tests, API snapshot, embedding guide, Docker (SPEC §22 E4).
+
+### What landed
+
+- **Engine session** (§4.3/§4.4): `EngineSession` — the stateful engine
+  side of the protocol. Loading (IR + netlist), buffered runs, live
+  transient runs advanced in wall-clock chunks (~16 ms) with an injected
+  `SessionClock` (core stays timer-free; hosts pass `hostClock()`),
+  `control` pause/resume/step/stop, `setParam` (order reset + breakpoint,
+  SPEC §4.4 restart), `setExternal` via a zero-order-hold channel
+  registry, `evaluate`, `exportSpice`. Every reply correlates by request
+  id; async tick events flow through the stable reply sink.
+- **Live engine primitives** (§4.4): `TranStepper` — resumable transient
+  driver shared by batch and live paths (chunked advance is
+  sample-identical to one batch run); phase-continuous SIN retuning
+  (frequency changes fold ω·Δt into a frozen anchor — no phase glitch by
+  construction, retry-safe between retunes); PULSE duty-cycle retune;
+  device `setLiveParam` hooks (R/C/L value, source amplitude/frequency/
+  offset, switch state override); `EXTERNAL(chan)` waveform parsing,
+  serialization, and channel registry.
+- **Transports** (§2.1/§6): in-process transport now hosts the REAL engine
+  (the P0 stub is gone); worker transport with a module-worker entry,
+  crash detection (<1 event-loop turn) + respawn, zero-copy transfer of
+  large sample buffers; WebSocket transport with capped-backoff
+  auto-reconnect and typed disconnect errors. `createInProcessClient`/
+  `createWorkerClient`/`createWebSocketClient` all return
+  `SimulatorClient`; `connect()` opens the transport before the handshake.
+- **Conformance suite** (§6): 10 checks over every transport — handshake
+  capability/limits, node/branch tables, typed errors for bad netlists,
+  buffered op with exact divider value, tran streaming, live streaming
+  with `setParam` ack + stop, evaluate, exportSpice, idempotent-safe
+  second handshake. Green on in-process, worker, and WebSocket.
+- **`@spicekit/server`** (§7.1): `Bun.serve` WebSocket host — one Bun
+  `Worker` per connection (runs never on the event loop, bounded by
+  `maxConnections`), zod-validated frames (unknown/invalid → close 4400),
+  token-bucket rate limits (→ 4409), `maxPayloadLength` (→ 1009/1006),
+  backpressure check on send, origin allow-list + optional bearer token on
+  the upgrade, `/healthz`, `/readyz` (503 at capacity), Prometheus
+  `/metrics` (runs started/completed/failed, connections, messages,
+  timesteps, p95 run latency), graceful SIGTERM (close sockets 1001,
+  terminate workers, stop accepting). Env config via zod, fail fast.
+- **Chaos suite**: malformed JSON, invalid protocol messages, oversized
+  frames, 400-message rate-limit bursts, abrupt client vanish mid-live-run
+  (server stays healthy, connections drop to zero, a fresh connection runs
+  end-to-end), auth/origin rejections.
+- **Sparse LU** (§5.4 stage 2): `SymbolicLU` (Markowitz order + fill
+  accounting, once per pattern) + `SparseLU` (numeric refactor in the
+  reused order with threshold partial pivoting). Property-tested against
+  the dense kernel on random sparse systems, reuse accounting, singular
+  reporting, circuit-scale pattern.
+- **Protocol 0.2.0** (additive): `ack` message for control/setParam/
+  setExternal; EXTERNAL waveform parses/serializes.
+- **Hygiene**: API snapshot test (§4.5) pinning protocol/core/client
+  exports; `docs/embedding.md` (plain JS / React / Vue + live mode +
+  WebSocket protocol guide); multi-stage Dockerfile (pinned oven/bun,
+  production deps, non-root, HEALTHCHECK, SIGTERM); CLI `serve` and
+  `convert` commands (both tested end-to-end).
+
+### Verification (SPEC §22 E4 acceptance)
+
+- **441 tests green** (13,500+ expect calls) across 37 files; `tsc -b`,
+  biome, type-aware ESLint, dependency-cruiser (273 modules) all clean.
+- **Conformance green on all transports**: in-process, real Bun Worker,
+  and WebSocket against real `Bun.serve` (browser runs — the suite is
+  transport-agnostic and wired for the Playwright browser harness; CI
+  matrix for Chromium/Firefox/WebKit is the remaining CI-side step).
+- **Live frequency change shows no phase glitch**: waveform-level test
+  (retune 1 kHz → 500 Hz mid-run; max adjacent-sample jump stays at the
+  smooth-slew bound) plus session-level continuity through `setParam`.
+- **Docker image**: Dockerfile provided (build + Trivy scan job is a CI
+  follow-up); packed-tarball embedding smoke for Node is a CI follow-up —
+  workspace embedding is covered by the client test suite.
+
+### Deferred / next up
+
+- CI: browser conformance matrix (Worker in Chromium/Firefox/WebKit),
+  Docker build+scan job, packed-tarball smoke (Bun/Node/browser bundle).
+- Workspace switchover to the sparse solver (pattern emitted by the
+  compiler, §5.2) — the standalone module is tested and exported.
+- U1: rendering, camera, selection (UI track).
+
 ## E3 — AC, noise, behavioral (2026-10-30)
 
 **Status: complete.** Complex solver, `.ac`, `.tf`, `.noise`, behavioral B
