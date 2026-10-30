@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "dockview/dist/styles/dockview.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
 @import "@fontsource/ibm-plex-sans/400.css";
@@ -136,4 +137,39 @@ kbd {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── dockview chrome mapped to Studio tokens (UI-UX-SPEC §4.2) ────────────
+ * The shell applies `dockview-theme-dark` or `dockview-theme-light` as the
+ * structural base; every color below comes from Studio tokens so themes
+ * cascade via `data-theme` (dark / light / paper). */
+.dockview-theme-dark,
+.dockview-theme-light {
+  --dv-transition-duration: var(--dur-2);
+  --dv-group-view-background-color: var(--bg-panel);
+  --dv-tabs-and-actions-container-background-color: var(--bg-panel);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-elevated);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-panel);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-elevated);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-panel);
+  --dv-tab-divider-color: var(--border);
+  --dv-activegroup-visiblepanel-tab-color: var(--fg);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-faint);
+  --dv-separator-border: var(--border);
+  --dv-paneview-header-border-color: var(--border);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-drag-over-border: 1px solid var(--accent);
+}
+
+.dockview-theme-dark,
+.dockview-theme-light {
+  color-scheme: inherit;
+}
+
+/* Studio tabs: compact, quiet, mono numbers nowhere — tabs are labels. */
+.dockview-theme-dark .dv-tab,
+.dockview-theme-light .dv-tab {
+  font-size: var(--fs-xs);
 }

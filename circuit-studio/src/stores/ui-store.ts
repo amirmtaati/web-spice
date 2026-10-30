@@ -6,7 +6,7 @@
 import { create } from "zustand";
 import { applyTheme, type ThemeId } from "../app/theme.ts";
 
-export type ToolId = "select" | "wire" | "place" | "pan";
+export type ToolId = "select" | "wire" | "place" | "text" | "probe" | "pan";
 
 interface UiState {
   theme: ThemeId;

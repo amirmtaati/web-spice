@@ -12,12 +12,12 @@ export function EmptyState({
   className,
 }: {
   /** Simple line-art glyph (Lucide icon component). */
-  readonly icon?: ReactNode;
+  readonly icon?: ReactNode | undefined;
   readonly title: string;
-  readonly hint?: string;
-  readonly actionLabel?: string;
-  readonly onAction?: () => void;
-  readonly className?: string;
+  readonly hint?: string | undefined;
+  readonly actionLabel?: string | undefined;
+  readonly onAction?: (() => void) | undefined;
+  readonly className?: string | undefined;
 }) {
   return (
     <div

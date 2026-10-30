@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "Transport-agnostic client for the spicekit engine: request correlation, typed errors, conformance suite.",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "src/worker-entry.ts"
+  ],
   "license": "MIT",
   "exports": {
     ".": {

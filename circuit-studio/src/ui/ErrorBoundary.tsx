@@ -3,6 +3,7 @@
  * never a white screen (UI-UX-SPEC §1.2 principle 8).
  */
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Button } from "./Button.tsx";
 import { ErrorState } from "./ErrorState.tsx";
 
 export interface ErrorBoundaryProps {
@@ -13,6 +14,8 @@ export interface ErrorBoundaryProps {
   readonly onError?: (error: Error) => void;
   /** Change to reset the boundary state (e.g. theme, panel id). */
   readonly resetKeys?: readonly unknown[];
+  /** Produces the clipboard payload for the "Copy diagnostics" action. */
+  readonly diagnostics?: () => string;
 }
 
 interface ErrorBoundaryState {
@@ -50,11 +53,26 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     const { error } = this.state;
     if (error !== null) {
       return (
-        <ErrorState
-          title={`Panel error — ${this.props.region}`}
-          detail={error.message}
-          onRetry={() => this.setState({ error: null })}
-        />
+        <div className="flex h-full flex-col items-center justify-center gap-2">
+          <ErrorState
+            title={`Panel error — ${this.props.region}`}
+            detail={error.message}
+            onRetry={() => this.setState({ error: null })}
+          />
+          {this.props.diagnostics !== undefined && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(this.props.diagnostics?.() ?? "")
+                  .catch(() => {});
+              }}
+            >
+              Copy diagnostics
+            </Button>
+          )}
+        </div>
       );
     }
     return this.props.children;

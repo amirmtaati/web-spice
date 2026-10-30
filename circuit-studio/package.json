@@ -21,7 +21,9 @@
     "@radix-ui/react-tabs": "1.2.1",
     "@radix-ui/react-tooltip": "1.4.1",
     "@spicekit/client": "workspace:*",
+    "dockview-core": "8.8.2",
     "dockview-react": "8.8.2",
+    "lucide-react": "1.65.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.8"

@@ -2,6 +2,63 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## UX0 — Design system, shell, and command foundation (2026-10-31)
+
+**Status: complete.** All eight tasks (UX0-T1…T8) landed; gates green
+(`bun run check`, `bun test circuit-studio` — 64 UI tests, `bun run
+build:studio`, `bun run e2e` — 5 Playwright journeys on the production
+build, engine suite 441 tests unaffected).
+
+- **T1 tokens:** full dark/light/paper token set (`src/app/tokens.css`) +
+  Tailwind `@theme inline` mapping (`src/index.css`); bundled Inter /
+  JetBrains Mono / IBM Plex Sans via Fontsource (ADR 006); guard tests
+  (`test/tokens.test.ts` WCAG contrast for the token pairs, `test/
+  no-hardcoded-colors.test.ts` — components reference tokens, never hex).
+- **T2 primitives:** 22 `src/ui/` components (Button, IconButton, Field,
+  NumberInput, Select, Tabs, Panel, Tooltip, Popover, Menu, Toast, Badge,
+  Chip, Kbd, EmptyState, Skeleton, ProgressBar, Splitter, ErrorState,
+  ColorDot, ErrorBoundary, cn) with colocated happy-dom + Testing Library
+  tests (ADR 007); Radix where behavior is nontrivial (ADR 005).
+- **T3 formatters:** engineering/SI/unit/time formatters + SI input parser
+  (`format.ts`) with exhaustive round-trip tests (1e-15…1e12, 3-sig-digit
+  accuracy) and signal-name pretty-printing (Appendix A).
+- **T4 shell:** dockview integration (`StudioShell.tsx`) with regions
+  A/B/C/D/E/F/G (§3.1); Build/Debug/Present presets as serialized layouts
+  with canvas ≥ 50 % width share + 40 % instrument dock share (unit-tested
+  fractions); layout persistence to localStorage with structural
+  validation; runtime canvas-width guard (`enforceCanvasGuard`); dockview
+  chrome mapped to Studio tokens for all three themes.
+- **T5 commands:** typed command registry (zustand) — palette
+  (Ctrl/Cmd+K, fuzzy + recents), searchable shortcut overlay (`?`),
+  global shortcut dispatcher with text-entry guard, and the **full §9.2
+  binding table registered** (37 chords; future-milestone commands present
+  as disabled stubs); CI tests assert binding completeness + zero
+  conflicts + canonical form; remap via `setShortcut` with conflict
+  detection.
+- **T6 engine chip + worker transport:** `sim/client.ts` defaults to the
+  Web Worker via Vite `?worker` (`?transport=in-process` override for
+  tests); `@spicekit/client` gained a backward-compatible
+  `workerFactory` transport option and marks `worker-entry` as
+  side-effectful (fixing an empty worker chunk); run bar engine chip
+  shows transport + version with reconnect action.
+- **T7 scaffolding:** per-panel error boundaries with "Copy diagnostics",
+  app-level boundary, ToastProvider mounted shell-wide.
+- **T8 perf:** `?view=perf` harness page (cold-load lower bound, rAF
+  median/p95, ring-buffer bench); baselines + bundle sizes recorded in
+  `docs/perf-baseline.md` — initial JS **260 kB gzip** (budget 350), CSS
+  21 kB gzip, worker 133 kB lazy.
+- **ADRs:** 004 dockview, 005 Radix, 006 Fontsource, 007 testing stack,
+  008 lucide-react icons.
+- **Deviations:** (1) select tool is palette-only — §3.1's "select V"
+  conflicts with §9.2's authoritative "Edit value V" (UX1 resolves by
+  context); (2) `@types/bun` added to the UI tsconfig for colocated test
+  typing — runtime-agnostic rules still enforced by eslint/dep-cruiser;
+  (3) component tests cover primitives + logic; typing flows are e2e
+  (happy-dom cannot synthesize React 19 controlled-input onChange).
+- **UX0 acceptance:** gates green; §11 "looks right" pass done via
+  Playwright screenshots (Build/Debug dark + light + paper + palette) —
+  alignment, hierarchy, mono readouts, themes all verified.
+
 ## UI/UX specification and agent kickoff prompt for circuit-studio (2026-10-31)
 
 **Status: complete.** Documentation only (no UI code yet, by design); the

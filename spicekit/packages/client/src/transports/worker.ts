@@ -25,6 +25,12 @@ interface MinimalWorker {
 export interface WorkerTransportOptions {
   /** Called when the worker crashed and was respawned (reconnect hint). */
   onCrash?: () => void;
+  /**
+   * Custom spawn hook for bundlers that need a lexical `new Worker` to emit a
+   * worker chunk (e.g. Vite `?worker` imports). When provided, `workerUrl` is
+   * only a label/fallback. Optional for backward compatibility.
+   */
+  workerFactory?: () => MinimalWorker;
 }
 
 export function createWorkerTransport(
@@ -38,12 +44,14 @@ class WorkerTransport implements Transport {
   private worker: MinimalWorker | null = null;
   private handler: ((message: EngineToClient) => void) | null = null;
   private readonly onCrash: (() => void) | undefined;
+  private readonly workerFactory: (() => MinimalWorker) | undefined;
 
   constructor(
     private readonly workerUrl: URL | string,
     options: WorkerTransportOptions = {},
   ) {
     this.onCrash = options.onCrash;
+    this.workerFactory = options.workerFactory;
   }
 
   start(): Promise<void> {
@@ -75,12 +83,14 @@ class WorkerTransport implements Transport {
   }
 
   private spawn(): void {
-    const WorkerCtor = (
-      globalThis as unknown as {
-        Worker: new (url: URL | string, opts: { type: "module" }) => MinimalWorker;
-      }
-    ).Worker;
-    const worker = new WorkerCtor(this.workerUrl, { type: "module" });
+    const worker =
+      this.workerFactory !== undefined
+        ? this.workerFactory()
+        : new (
+            globalThis as unknown as {
+              Worker: new (url: URL | string, opts: { type: "module" }) => MinimalWorker;
+            }
+          ).Worker(this.workerUrl, { type: "module" });
     this.worker = worker;
     worker.addEventListener("message", (event) => {
       this.handler?.(event.data);
