@@ -47,6 +47,17 @@ Harness page: `circuit-studio` with `?view=perf`. Measured 2026-10-31.
 | Preset switch Build→Debug (Playwright step, incl. assertion) | ~540 ms wall | animation 160 ms; perception instant | e2e timing is assertion-inclusive; the animation itself uses `--dur-2` (160 ms) |
 | Worker handshake (engine chip ready) | < 400 ms | crash recovery < 1 s class | ✅ |
 
+### Waveform instruments (UX3)
+
+| Metric | Value | Budget (§10 / UX3-T1) | Status |
+|---|---|---|---|
+| Min-max pair decimation, 4 channels × 100 k → 2048 bins each (inline, worst case) | ~12 ms total (bun perf test) | draw loop keeps 60 fps with worker offload | ✅ decimation runs in `decimate.worker.ts`; inline is the fallback path |
+| Scope render fps, 100 k-point decimated window, 1 channel + trigger + cursors (e2e, Chromium headless, 1720×1000) | ≥ 55 fps measured over 1.5 s | ≥ 60 fps budget; e2e gate ≥ 55 (CI variance margin) | ✅ `scope.e2e.ts` perf gate |
+| Instrument chunks (lazy, §15.1) | `ScopePanel` 25.4 kB (9.1 gzip) + `PlotsPanel` 18.9 kB (6.3 gzip) + `uplot-theme` (uPlot) 54.5 kB (24.5 gzip) + `decimate.worker` 0.7 kB | instruments NOT in the initial chunk | ✅ loaded on first panel open |
+| Initial JS after UX3 (uPlot + instrument math moved to lazy chunks) | 1,063.7 kB raw / **306.3 kB gzip** | ≤ 350 kB gzip | ✅ (+46 kB vs UX0 — experiment recipes, plot math, scope store) |
+| RC experiment τ fit vs R·C (engine in-process + UI pathway) | τ ≈ 1.000 ms for R·C = 1 ms (R² = 1.000) | within 5 % | ✅ unit + e2e |
+| Sallen-Key −3 dB corner through the UI (Bode features) | 1.03 kHz vs analytic 1.024 kHz | ±5 % | ✅ e2e |
+
 Notes:
 
 - Drag pointer-to-photon, pan/zoom with 1,000 symbols, hit-test, and 30-min

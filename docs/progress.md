@@ -2,6 +2,91 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## UX3 — Oscilloscope and plots (2026-10-31)
+
+**Status: complete.** Gates green: `bun run check` (biome + type-aware ESLint
++ `tsc -b` + dep-cruiser, 444 modules), `bun test circuit-studio` — **315 UI
+tests** (94 new: measurement suite, trigger, decimation, τ NLLS fit, cursors,
+math channels, FFT/THD, Bode features, scope store, export CSV, gallery
+engine gate, RC τ engine-integration), `bun run build:studio` (instruments
+split into lazy chunks), `bun run e2e` — **16 Playwright journeys** (5 new:
+experiment τ flow, gallery 1–12 through the production UI, Sallen-Key Bode
+numeric, export bytes, ≥ 55 fps @ 100 k points).
+
+**Landed (UX3-T1…T8):**
+- **T1 scope core:** uPlot (ADR-010, ~24 kB gzip lazy chunk) behind Studio DS
+  theming (`uplot-theme.ts` reads CSS vars; no hardcoded hex in components —
+  the two canvas adapters are documented allowlist exceptions since Canvas2D
+  cannot resolve custom properties). 8 channels with per-channel
+  visibility/color/offset/invert, legend doubles as the measurement column;
+  probes auto-wire to traces when a run finishes (UX2-T6 bridge).
+- **T2 timebase/decimation:** 1-2-5 s/div + position + Auto-fit + zoom box /
+  Shift-pan / wheel; aligned min-max PAIR decimation (spikes survive zoom-out)
+  computed in `decimate.worker.ts` with a transparent inline fallback
+  (`decimator.ts`, one-frame display latency while the worker computes).
+- **T3 trigger engine:** edge/level/Auto/Normal/Single/holdoff as pure
+  deterministic functions over recorded streams (`trigger.ts`, 9 unit
+  tests); trigger glyph + flash on the plot's left edge.
+- **T4 cursors + measurements:** X1/X2 (Δt, 1/Δt) + Y1/Y2 (ΔV) with snap,
+  track, drag handles, numeric entry; measurement suite (Vpp/Vmax/Vmin/
+  Vavg/Vrms/f/period/duty/rise/fall/overshoot) exact on synthetic fixtures,
+  refreshed at 4 Hz in the legend (data path stays React-free).
+- **T5 math channels:** A±B, A×B, ∫ (trapezoid), d/dt (central difference)
+  as real scope channels; custom expressions via engine `evaluate` at the
+  last-sample context (`SimController.evaluate`, AGENTS.md §6.3) with a
+  4 Hz readout chip.
+- **T6 plot family:** Bode (log-f mag + phase dual axis, −3 dB marker, 0 dB
+  crossover, gain/phase margins via interpolated crossings), DC sweep /
+  curve tracer (multi-trace), X–Y view, spectrum (radix-2 FFT + rect/hann/
+  hamming/blackman with coherent-gain correction + THD) — all sharing the
+  resultStore contract.
+- **T7 experiments:** recipe → netlist(+.probe) → analysis → scope channels
+  → annotations (63.2 %/36.8 % hlines, τ marker, 3τ–5τ band) → run, plus the
+  callout card (explanation + "what to look for", pin/dismiss). "Estimate τ
+  from cursor" fits v = C + B·e^(−t/τ) by variable projection (2×2 linear
+  solve per candidate τ, golden-section on ln τ) with an R² ≥ 0.99 honesty
+  gate — **τ ≈ 1.000 ms for R·C = 1 ms (R² 1.000) through the real engine**;
+  recipes registered in the command palette (Mod+K → "Experiment: …").
+- **T8 export + history:** CSV (full-precision, `#` header, unit-tested) and
+  PNG (theme-background composite) from the scope toolbar and every plot
+  panel; run-history ghost overlay (last 5 runs, envelope read off
+  resultStore's decimation cache).
+
+**Gallery:** 12 circuits (RC charge/discharge, RLC step, divider OP,
+inverting amp, Sallen-Key, half-wave rectifier, diode IV, LC tank,
+integrator, NMOS inverter, CE amp) — every kind and the E2 device library —
+asserted through the real in-process engine (`gallery.test.ts`, physics
+gates incl. 63.2 % @ τ, −3 dB = 0.6436·f₀ for Q = 0.5, LC peak within 2 %)
+and run end-to-end through the production UI (worker transport) in
+`gallery.e2e.ts`.
+
+**Fixes folded in (found by the new e2e journeys):** `resultStore.getSnapshot()`
+must never be handed to `useSyncExternalStore` directly (fresh object per
+call → React error #185) — consumers subscribe to the throttled numeric
+version; uPlot normalizes `series.stroke` at construction so series sets are
+rebuilt via a signature (no post-init mutation); uPlot canvases are
+pointer-events-none (the cursor overlay owns all pointer routing) and the
+plot box clips overflow so the legend stays clickable at any dock height;
+measurement columns carry correct units (Hz/s/% vs channel V/A).
+
+**Deviations (with reasons):**
+- *Journey 3 (live frequency change, no phase jump) is deferred to UX5* — it
+  requires the function-generator instrument (§6.8, UX5/UX6). The scope-side
+  of live mode (streaming chunks → triggered/roll display, pause keeps
+  history) is covered by the UX2 live journey still passing.
+- *Spec'd "GPU renderer" for the high-point-count path* (§6.7.0): deferred —
+  min-max pairs cap visible points at ~4–8 k, so Canvas2D holds ≥ 55 fps
+  with 100 k-point windows (perf gate); revisit at UX5 live soak (noted in
+  ADR-010).
+- *Engine tran output does not include capacitor branch currents* (only node
+  voltages + source branch currents), so RC recipes probe `v(out)` rather
+  than `i(C1)`; per-element currents arrive with the UX4 measurement surfaces
+  (OP/solve data), and the honesty rule keeps annotations to what the run
+  actually streams.
+- *`.probe` cards are accepted but do not gate streaming* (engine streams
+  the analysis output as-is) — the UI selects channels from the streamed
+  signal registry; probe cards remain for future engine-side filtering.
+
 ## UX2 — Simulation control and results plumbing (2026-10-31)
 
 **Status: complete.** Gates green: `bun run check` (443 engine tests — two
