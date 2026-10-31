@@ -5,6 +5,8 @@
  * uniqueness CI test see the complete table from day one.
  */
 import { THEMES } from "../app/theme.ts";
+import { zoomToFit } from "../canvas/CanvasView.tsx";
+import { useEditorStore } from "../editor/store.ts";
 import { useShellStore } from "../shell/shell-store.ts";
 import { useUiStore } from "../stores/ui-store.ts";
 import { type CommandDef, useCommandRegistry } from "./registry.ts";
@@ -149,8 +151,47 @@ export function shellCommands(): CommandDef[] {
     disabled("sim.live", "Toggle live interactive mode", "Simulate", "Mod+L"),
 
     // ── Editing (UX1) ────────────────────────────────────────────────────
-    disabled("edit.undo", "Undo", "Edit", "Mod+Z"),
-    disabled("edit.redo", "Redo", "Edit", "Mod+Shift+Z"),
+    {
+      id: "edit.undo",
+      title: "Undo",
+      category: "Edit",
+      shortcut: "Mod+Z",
+      source: SOURCE,
+      run: () => useEditorStore.getState().undo(),
+      isEnabled: () => useEditorStore.getState().historyVersion >= 0,
+    },
+    {
+      id: "edit.redo",
+      title: "Redo",
+      category: "Edit",
+      shortcut: "Mod+Shift+Z",
+      source: SOURCE,
+      run: () => useEditorStore.getState().redo(),
+    },
+    {
+      id: "edit.delete",
+      title: "Delete selection",
+      category: "Edit",
+      shortcut: "Delete",
+      source: SOURCE,
+      run: () => useEditorStore.getState().deleteSelection(),
+    },
+    {
+      id: "edit.rotate",
+      title: "Rotate",
+      category: "Edit",
+      shortcut: "R",
+      source: SOURCE,
+      run: () => useEditorStore.getState().rotateSelection(),
+    },
+    {
+      id: "edit.mirrorX",
+      title: "Mirror X",
+      category: "Edit",
+      shortcut: "X",
+      source: SOURCE,
+      run: () => useEditorStore.getState().mirrorSelection(),
+    },
     disabled("edit.copy", "Copy selection", "Edit", "Mod+C"),
     disabled("edit.paste", "Paste", "Edit", "Mod+V"),
     disabled("edit.duplicate", "Duplicate selection", "Edit", "Mod+D"),
@@ -170,7 +211,14 @@ export function shellCommands(): CommandDef[] {
     disabled("view.power", "Show power", "View", "Mod+Shift+P"),
     disabled("view.resultsTable", "Results table", "Measure", "Mod+Shift+T"),
     disabled("view.console", "Toggle console", "View", "Mod+`"),
-    disabled("view.zoomFit", "Zoom to fit", "View", "Home"),
+    {
+      id: "view.zoomFit",
+      title: "Zoom to fit",
+      category: "View",
+      shortcut: "Home",
+      source: SOURCE,
+      run: () => zoomToFit(),
+    },
     disabled("view.zoom100", "Zoom 100 %", "View", "Shift+1"),
     disabled("view.toggleGrid", "Toggle grid", "View", "Mod+G"),
     disabled("view.toggleSnap", "Toggle snap", "View", "Mod+Shift+G"),

@@ -24,6 +24,7 @@
     "dockview-core": "8.8.2",
     "dockview-react": "8.8.2",
     "lucide-react": "1.65.0",
+    "rbush": "4.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.8"

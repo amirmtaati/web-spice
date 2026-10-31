@@ -18,6 +18,9 @@ import {
   Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { CanvasView } from "../canvas/CanvasView.tsx";
+import { InspectorPanel } from "../inspector/InspectorPanel.tsx";
+import { LibraryPanel } from "../library/LibraryPanel.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
 import { ErrorBoundary } from "../ui/ErrorBoundary.tsx";
 
@@ -31,9 +34,14 @@ interface PanelSpec {
 }
 
 const SPECS: Record<string, PanelSpec> = {
-  canvas: { title: "Schematic", icon: CircuitBoard, landsIn: "UX1" },
-  library: { title: "Library", icon: Grid3x3, landsIn: "UX1" },
-  inspector: { title: "Inspector", icon: SlidersHorizontal, landsIn: "UX2" },
+  canvas: { title: "Schematic", icon: CircuitBoard, landsIn: "UX1", body: () => <CanvasView /> },
+  library: { title: "Library", icon: Grid3x3, landsIn: "UX1", body: () => <LibraryPanel /> },
+  inspector: {
+    title: "Inspector",
+    icon: SlidersHorizontal,
+    landsIn: "UX1+",
+    body: () => <InspectorPanel />,
+  },
   scope: { title: "Scope", icon: ChartLine, landsIn: "UX3" },
   plots: { title: "Plots", icon: ChartLine, landsIn: "UX3" },
   generator: { title: "Generator", icon: Zap, landsIn: "UX5" },

@@ -2,6 +2,60 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## UX1 — Schematic editor experience (2026-10-31)
+
+**Status: core complete, subset deferred.** Gates green: `bun run check`,
+`bun test circuit-studio` — **161 UI tests** (38 schematic/symbols, 23
+camera/tools/history, 100 UX0 suite), `bun run build:studio`, `bun run e2e`
+— **6 Playwright journeys** including journey 1 (build RC from the palette).
+
+**Landed (UX1-T1…T10 partial):**
+- **T1 renderer:** `Renderer` seam with a Canvas2D backend consuming a pure
+  draw-list scene (`canvas/scene.ts`); SVG export generated from the same
+  scene graph (`canvas2d.ts exportSvg`); DPR-crisp transform; theme palette
+  read from CSS tokens. *Deviation:* GPU (Pixi/WebGL) deferred — Canvas2D
+  meets the interaction budgets at schematic scale; ADR-009 records the
+  swap-in seam (deviation from GPU-first §9.1).
+- **T2 camera:** cursor-centered wheel zoom (5 %–6400 % clamped), pan,
+  inertia with friction decay, critically damped programmatic moves
+  (reduced-motion instant), zoom-to-fit, LOD tiers (far/mid/near text).
+  Minimap deferred to UX6 polish.
+- **T3 spatial index:** rbush R-tree (ADR-009, ambient type declaration) —
+  hit-test benchmark **< 0.5 ms @ ~5,000 objects** (CI test), rubber band
+  LTR-enclosed / RTL-touching, pin-over-body hit priority.
+- **T4 tools:** pure tool FSM (idle/rubber/drag/wire/place/pan) with effects;
+  snapping (pins > wire points > grid; Alt disables); L-corner routing with
+  Space flip, 45°/free modes via Shift+Space; Esc cancels; click-to-place
+  re-arms with R/X live.
+- **T5 wiring semantics:** normalization (idempotent, property-tested with
+  seeded PRNG): T-splits, collinear merge, zero-length removal, junction
+  derivation (≥ 3 ends), crossings never connect; connectivity union-find
+  with exact KiCad semantics; net naming (ground = 0, labels, net_N).
+- **T6 symbols:** **67 definitions** (≥ 60 target) across 10 categories with
+  ANSI zigzag + IEC rectangle for core passives, hidden power/bulk pins,
+  SPICE templates; validator green in CI (grid, unique pin numbers, template
+  completeness, graphics extent).
+- **T7 library palette:** search-as-you-type, category chips, favorites +
+  recents (localStorage), preview card with pin table; click arms placement.
+- **T8 inspector + history:** selection properties (reference/value/model
+  enums, multi-edit), document settings; bounded undo/redo with gesture
+  coalescing.
+- **T9 netlist + ERC:** deterministic extraction (goldens: RC low-pass, pot
+  two-resistor split, switch S-cards + control sources, SPDT complementary
+  drives, MOS bulk tie, transformer L/K, gate B-cards) + sourceMap;
+  ERC rules: missing ground, duplicate references, unconnected pins, output/
+  power conflicts, dangling wires, unanchored labels, label conflicts.
+- **T10 affordances:** switch/button/pot/LED interactive definitions carry
+  state that flows into extraction + live params (canvas glow/knob rendering
+  lands with UX2 live mode).
+
+**Deferred to later milestones (tracked):** copy/paste/array paste (UX1-T8
+tail), A* auto-route assist, lasso, minimap, symbol visual-regression
+gallery, hierarchical sheets (§9.13), GPU renderer. The numeric 63.2 % @ τ
+assertion for journey 1 lands with UX3 (scope) per §13.5 sequencing.
+
+## UX0 follow-up — UI test suite repair (2026-10-31)
+
 ## UX0 follow-up — UI test suite repair (2026-10-31)
 
 **Status: complete.** The UX0 commit had landed latent test-suite defects
