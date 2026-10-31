@@ -330,10 +330,12 @@ export class SimController {
     }
     this.handle?.pause();
     // Freeze the readout NOW (scope-like Stop): control is async, so a short
-    // in-flight chunk tail keeps appending after this point — the readout must
-    // not track it (UX2-T3 "pause freezes").
+    // in-flight chunk tail keeps appending after this point — the readout
+    // must not track it (UX2-T3 "pause freezes"). Freeze at 0 when neither
+    // progress nor data has arrived yet — a null freeze renders "—" and can
+    // appear to "move" when the first sample lands.
     const t = sim.progress?.simTime ?? resultStore.axisEnd;
-    sim.setPausedSimTime(Number.isFinite(t) ? t : null);
+    sim.setPausedSimTime(Number.isFinite(t) ? t : 0);
     sim.setSession("paused");
   }
 
@@ -378,6 +380,24 @@ export class SimController {
     useSimStore.getState().setSpeed(factor);
     // Changing realtimeFactor mid-run is not in protocol 0.2 — takes effect
     // on the next live run (documented deviation, see progress notes).
+  }
+
+  /**
+   * Pure expression evaluation (AGENTS.md §6.3) — math-channel readouts.
+   * The caller supplies the context from result buffers; the engine never
+   * reads the loaded circuit. Rejects with EngineError (e.g. E_PARSE).
+   */
+  async evaluate(
+    expr: string,
+    context: Record<string, number>,
+  ): Promise<{ ok: true; value: number } | { ok: false; error: string }> {
+    try {
+      const client = this.requireClient();
+      await this.ensureConnected();
+      return { ok: true, value: await client.evaluate(expr, context) };
+    } catch (err: unknown) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   // ─── crash recovery (AGENTS.md §3.4) ───────────────────────────────────────

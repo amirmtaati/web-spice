@@ -357,8 +357,10 @@ function AnalysisOptions({ kind }: { readonly kind: AnalysisKind }): ReactNode {
 }
 
 /**
- * Readouts: simulated time + progress. rAF-driven DOM updates (no React
- * re-render per chunk/progress message — §7 rule 2).
+ * Readouts: simulated time + progress. The RUNNING readout is rAF-driven
+ * (no React re-render per chunk/progress message — §7 rule 2); the PAUSED
+ * readout is render-driven so the freeze is synchronous with the state
+ * change (a rAF write would lag up to one frame and race observers).
  */
 function Readouts({
   running,
@@ -369,14 +371,15 @@ function Readouts({
 }): ReactNode {
   const timeRef = useRef<HTMLSpanElement | null>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
+  const paused = useSimStore((s) => s.session === "paused");
+  const frozen = useSimStore((s) => s.pausedSimTime);
   useInstrumentFrame(() => {
+    if (paused) {
+      return; // frozen text is rendered below, synchronously
+    }
     const sim = useSimStore.getState();
     let t: number | null = null;
-    if (sim.session === "paused") {
-      // Frozen at the pause transition — late in-flight chunks must not move
-      // the readout (scope-like Stop, UX2-T3).
-      t = sim.pausedSimTime;
-    } else if (sim.session === "running" && sim.progress !== null) {
+    if (sim.session === "running" && sim.progress !== null) {
       t = sim.progress.simTime;
     } else {
       t = resultStore.axisEnd; // last received axis value (NaN pre-data)
@@ -391,6 +394,8 @@ function Readouts({
       barRef.current.style.opacity = running ? "1" : "0";
     }
   });
+  const frozenText =
+    paused && frozen !== null && Number.isFinite(frozen) ? formatTime(frozen) : paused ? "—" : null;
   return (
     <div className="flex shrink-0 items-center gap-2" aria-live="off">
       <span
@@ -398,7 +403,11 @@ function Readouts({
         className="font-mono text-xs tabular-nums text-faint"
         title={live ? "simulated time (live)" : "simulated time"}
       >
-        t = <span ref={timeRef}>—</span>
+        {/*
+         * While paused React owns the text (synchronous freeze); while
+         * running React renders an empty node once and the rAF loop writes
+         * it (React never re-renders per chunk).
+         */}t = <span ref={timeRef}>{frozenText ?? ""}</span>
       </span>
       <span aria-hidden="true" className="h-1 w-16 overflow-hidden rounded-full bg-elevated">
         <span ref={barRef} className="block h-full w-0 rounded-full bg-accent transition-opacity" />
