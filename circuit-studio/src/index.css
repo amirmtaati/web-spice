@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "dockview/dist/styles/dockview.css";
+@import "dockview-react/dist/styles/dockview.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
 @import "@fontsource/ibm-plex-sans/400.css";

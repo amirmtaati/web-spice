@@ -2,6 +2,20 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## Studio fix — dockview stylesheet resolution (2026-11-01)
+
+Fresh installs failed at dev-serve: `Can't resolve
+'dockview/dist/styles/dockview.css'` (`@tailwindcss/vite:generate:serve`).
+Bun 1.3's isolated linker exposes only *direct* deps to workspace code — the
+combined `dockview` package is a *transitive* dep (of `dockview-react`), so
+the bare specifier was unresolvable; a stale pre-isolated
+`node_modules/dockview` directory in the dev sandbox had been masking it in
+earlier gate runs. Fix: import `dockview-react/dist/styles/dockview.css`
+(direct dep, exports-mapped subpath). Verified on a fully clean reinstall:
+gates green (`bun run check` 443 tests + dep-cruiser, `bun test
+circuit-studio` 313 pass, `bun run build:studio` OK) and dev-serve of
+`/src/index.css` returns 200 with the dockview chrome inline.
+
 ## UX3 — Oscilloscope and plots (2026-10-31)
 
 **Status: complete.** Gates green: `bun run check` (biome + type-aware ESLint
