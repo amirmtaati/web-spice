@@ -8,6 +8,7 @@
  * tests and debugging.
  */
 import { createInProcessClient, createWorkerClient, type SimulatorClient } from "@spicekit/client";
+import { notifyEngineCrash } from "./crash-hook.ts";
 // Vite's `?worker` import is the lexical `new Worker` the bundler needs to
 // emit the engine worker chunk (the transport's default spawn is dynamic).
 import EngineWorker from "./engine.worker.ts?worker";
@@ -29,6 +30,10 @@ export function getSimulatorClient(): SimulatorClient {
         ? createInProcessClient()
         : createWorkerClient(new URL("./engine.worker.ts", import.meta.url), {
             workerFactory: () => new EngineWorker(),
+            // AGENTS.md §3.4: the transport respawns the worker and hints the
+            // host; the controller (registered via crash-hook) re-connects and
+            // re-loads on the fresh, empty session.
+            onCrash: () => notifyEngineCrash(),
           });
   }
   return instance;
@@ -38,3 +43,10 @@ export function getSimulatorClient(): SimulatorClient {
 export function setSimulatorClientForTests(client: SimulatorClient | null): void {
   instance = client;
 }
+
+/**
+ * In-process client factory, re-exported so tests (and future dev tools)
+ * construct real engine sessions without importing @spicekit/client
+ * directly (architecture rule: only src/sim touches the package).
+ */
+export { createInProcessClient, createWorkerClient } from "@spicekit/client";

@@ -1,59 +1,54 @@
 /**
- * Engine status hook (UX0-T6, §6.1): one handshake on mount, exposed to the
- * run bar and status bar chips. States: connecting → ready | error; the
- * error state carries the message and a reconnect action (worker crash
- * auto-recovery hardening lands with UX5).
+ * Engine status hook (UX0-T6 → UX2-T1): a thin view over simStore. The
+ * controller owns the actual handshake (started once on first mount);
+ * reconnect = crash-recovery path (re-connect + re-load, §3.4).
  */
-import { useEffect, useState } from "react";
-import { getSimulatorClient, resolveTransport } from "./client.ts";
+import { useEffect } from "react";
+import { useSimStore } from "../stores/sim-store.ts";
+import { getSimController } from "./controller.ts";
 
 export interface EngineStatus {
-  readonly state: "connecting" | "ready" | "error";
+  readonly state: "connecting" | "ready" | "recovering" | "error";
   readonly engineVersion?: string;
   readonly transportLabel: string;
   readonly message?: string;
 }
 
-const TRANSPORT_LABEL = resolveTransport() === "in-process" ? "in-process" : "worker";
-
 export function useEngineStatus(): {
   readonly status: EngineStatus;
   readonly reconnect: () => void;
 } {
-  const [status, setStatus] = useState<EngineStatus>({
-    state: "connecting",
-    transportLabel: TRANSPORT_LABEL,
-  });
-  const [attempt, setAttempt] = useState(0);
+  const session = useSimStore((s) => s.session);
+  const engineVersion = useSimStore((s) => s.engineInfo?.engineVersion);
+  const transportLabel = useSimStore((s) => s.transportLabel);
+  const errorMessage = useSimStore((s) => s.error?.message);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: attempt is the manual reconnect trigger
   useEffect(() => {
-    let cancelled = false;
-    const client = getSimulatorClient();
-    client
-      .connect()
-      .then((info) => {
-        if (!cancelled) {
-          setStatus({
-            state: "ready",
-            engineVersion: info.engineVersion,
-            transportLabel: TRANSPORT_LABEL,
-          });
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setStatus({
-            state: "error",
-            transportLabel: TRANSPORT_LABEL,
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
+    void getSimController()
+      .ensureConnected()
+      .catch(() => {
+        /* error state surfaces via the chip */
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [attempt]);
+  }, []);
 
-  return { status, reconnect: () => setAttempt((a) => a + 1) };
+  const state: EngineStatus["state"] =
+    session === "error"
+      ? "error"
+      : session === "recovering"
+        ? "recovering"
+        : session === "idle"
+          ? "connecting"
+          : "ready";
+
+  return {
+    status: {
+      state,
+      ...(engineVersion === undefined ? {} : { engineVersion }),
+      transportLabel,
+      ...(errorMessage === undefined ? {} : { message: errorMessage }),
+    },
+    reconnect: () => {
+      getSimController().recoverFromCrash();
+    },
+  };
 }

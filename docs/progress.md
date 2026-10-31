@@ -2,6 +2,67 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## UX2 — Simulation control and results plumbing (2026-10-31)
+
+**Status: complete.** Gates green: `bun run check` (443 engine tests — two
+new client control-race regression tests included), `bun test circuit-studio`
+— **224 UI tests** (63 new across sim/result/console/probes/experiments),
+`bun run build:studio`, `bun run e2e` — **11 Playwright journeys** including
+journey 2's numeric gate (AC midband gain ±1 %).
+
+**Landed (UX2-T1…T7):**
+- **T1 session FSM + controller:** `sim/controller.ts` (≤ 500 lines after the
+  `sim/sim-error.ts` split) serializes load/run behind an ops queue (an F5
+  during an in-flight load can no longer orphan a run); typed error mapping;
+  crash hook → fresh session → re-connect + reload < 1 s (unit-tested);
+  run/stop toggle, pause/resume/step guard rails. *Fix landed here:* the
+  sim-time readout now **freezes at the pause transition** (scope-like Stop)
+  — async control means a short in-flight chunk tail keeps appending to
+  resultStore after pause, and the readout must not track it.
+- **T2 results pipeline:** `resultStore` ring buffers (Float64 retention +
+  Float32 display copy, min/max decimation caches), run history; `sim/axis.ts`
+  tran/dc/ac reconstruction; flat-memory soak tests (200k samples in 2k
+  chunks, fixed arrays).
+- **T3 run bar:** analysis kind picker with per-kind options, live toggle +
+  speed, sim-time/progress readouts via rAF (no React render per chunk),
+  method chip, F5/F6/F7 + Mod+L wired through the command registry.
+- **T4 instrument frames:** `useInstrumentFrame` (rAF, outside React) +
+  `sim/throttle.ts`; render-count test proves **300 streamed chunks → 0
+  additional React renders**; e2e journey asserts frames flow through the
+  shared frame sink.
+- **T5 error surfaces:** `sim/ErrorBanner` (typed code, line-pinned text,
+  component resolution via sourceMap), console panel (§6.6) with levels +
+  filters, `test/no-string-matching.test.ts` guards the typed surface.
+- **T6 probes:** `schematic/probes.ts` — place V/I probes from the tool rail,
+  per-probe color/channel assignment, probes serialize into `.probe` cards on
+  every document reload (probe signals stream through resultStore). *Deferred
+  to UX3-T1:* the F3 scope panel that renders them as traces.
+- **T7 experiments data layer:** `instruments/experiments/` — zod schema,
+  recipe registry (rc-charge, rc-discharge, rlc-step, integrator-ramp,
+  lc-resonance, diode-iv) validated against the real engine (63.2 % @ τ
+  numeric gate runs in CI).
+
+**Acceptance:** W1–W3 of AGENTS.md green. Journeys 1–2 assert numeric values:
+**63.2 % @ τ ±2 %** (buffered tran through resultStore) and **AC midband gain
+10 ±1 %** (ideal op-amp inverting stage, `vm(out)` @ 1 kHz). *Deviation:*
+§13.5 journey 2 asks for a BJT stage placed from the palette; the numeric
+midband-gain gate ships here with an analytically exact op-amp stage (gain =
+−Rf/Rin, model-independent), and the full palette-built BJT journey joins the
+UX3 gallery work.
+
+**Engine-side fix (client):** a control op issued **before** `runAccepted`
+lands (the F5 stop toggle racing the accept, ~10–50 ms window) used to carry
+`runId: ""`, get rejected by the engine, and be swallowed — leaving the run
+unstoppable until tstop. `@spicekit/client` now **queues control ops issued
+pre-acceptance and flushes them in order** when the acceptance arrives;
+deterministic in-process regression tests cover stop-race and pause+resume
+ordering. Found via the e2e F5-toggle journey failing 3/4 repeats under load;
+root-caused with message-trace instrumentation.
+
+**Hygiene:** `symbols/library-misc.ts` split (switches → `library-switch.ts`)
+and `sim/controller.ts` split (`sim-error.ts`) to restore the ≤ 500-line cap
+across the repo.
+
 ## UX1 — Schematic editor experience (2026-10-31)
 
 **Status: core complete, subset deferred.** Gates green: `bun run check`,

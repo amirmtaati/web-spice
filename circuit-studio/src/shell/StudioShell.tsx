@@ -11,10 +11,11 @@ import { registerShellCommands } from "../commands/appCommands.ts";
 import { CommandPalette } from "../commands/CommandPalette.tsx";
 import { ShortcutOverlay } from "../commands/ShortcutOverlay.tsx";
 import { useGlobalShortcuts } from "../commands/useGlobalShortcuts.ts";
+import { ErrorBanner } from "../sim/ErrorBanner.tsx";
 import { useUiStore } from "../stores/ui-store.ts";
 import { loadLayout, saveLayout } from "./layout-persistence.ts";
 import { PANEL_COMPONENTS } from "./panels.tsx";
-import { CANVAS_MIN_WIDTH_FRACTION, type PresetId, presetLayout } from "./presets.ts";
+import { CANVAS_MIN_WIDTH_FRACTION, PANEL_TITLES, type PresetId, presetLayout } from "./presets.ts";
 import { RunBar } from "./RunBar.tsx";
 import { StatusBar } from "./StatusBar.tsx";
 import { useShellStore } from "./shell-store.ts";
@@ -31,6 +32,7 @@ export function StudioShell(): ReactNode {
   const saveTimer = useRef<ReturnType<typeof globalThis.setTimeout> | undefined>(undefined);
 
   const presetNonce = useShellStore((s) => s.presetNonce);
+  const focusPanel = useShellStore((s) => s.focusPanel);
   const projectId = useShellStore((s) => s.projectId);
   const theme = useUiStore((s) => s.theme);
 
@@ -85,6 +87,30 @@ export function StudioShell(): ReactNode {
     }
   }, [presetNonce]);
 
+  // Panel-focus requests (commands → shell bridge, e.g. Ctrl+` console).
+  useEffect(() => {
+    const api = apiRef.current;
+    if (focusPanel === null || api === null) {
+      return;
+    }
+    const panel = api.getPanel(focusPanel.panelId);
+    if (panel !== undefined) {
+      panel.api.setActive();
+    } else {
+      // Panel not in the current preset — add it next to the last group.
+      const refGroup = api.groups.at(-1);
+      if (refGroup !== undefined) {
+        api.addPanel({
+          id: focusPanel.panelId,
+          component: focusPanel.panelId,
+          title:
+            PANEL_TITLES[focusPanel.panelId as keyof typeof PANEL_TITLES] ?? focusPanel.panelId,
+          position: { referenceGroup: refGroup },
+        });
+      }
+    }
+  }, [focusPanel]);
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg text-fg">
       <TitleBar />
@@ -103,6 +129,7 @@ export function StudioShell(): ReactNode {
           />
         </div>
       </div>
+      <ErrorBanner />
       <RunBar />
       <StatusBar />
       <CommandPalette />

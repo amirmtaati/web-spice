@@ -22,11 +22,6 @@ import {
   P5V,
   PROBE_I,
   PROBE_V,
-  SW_DPST,
-  SW_PB,
-  SW_PB_NC,
-  SW_SPDT,
-  SW_SPST,
   TEXT,
   VCC_PORT,
   VDD_PORT,
@@ -76,6 +71,7 @@ import {
   SUBCKT,
   T555,
 } from "./library-semi.ts";
+import { SW_DPST, SW_PB, SW_PB_NC, SW_SPDT, SW_SPST } from "./library-switch.ts";
 
 export const SYMBOL_LIBRARY: readonly SymbolDef[] = [
   // Passive

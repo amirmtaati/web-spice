@@ -75,11 +75,20 @@ describe("shell commands (§9.2)", () => {
     expect(findShortcutConflicts(commands)).toEqual([]);
   });
 
-  it("every command has a unique id, title, and a category", () => {
-    for (const command of shellCommands()) {
+  it("every command has a unique id and title, and a category", () => {
+    const commands = shellCommands();
+    const ids = new Set<string>();
+    const titles = new Set<string>();
+    for (const command of commands) {
       expect(command.id.length).toBeGreaterThan(0);
       expect(command.title.length).toBeGreaterThan(0);
       expect(command.category.length).toBeGreaterThan(0);
+      // Duplicate ids silently overwrite earlier registrations (Map.set) —
+      // a wired command must never be shadowed by a stale stub (UX2 lesson).
+      expect(ids.has(command.id)).toBe(false);
+      ids.add(command.id);
+      expect(titles.has(command.title)).toBe(false);
+      titles.add(command.title);
     }
   });
 

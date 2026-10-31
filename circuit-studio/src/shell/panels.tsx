@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { CanvasView } from "../canvas/CanvasView.tsx";
+import { ConsolePanel } from "../console/ConsolePanel.tsx";
 import { InspectorPanel } from "../inspector/InspectorPanel.tsx";
 import { LibraryPanel } from "../library/LibraryPanel.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
@@ -46,7 +47,12 @@ const SPECS: Record<string, PanelSpec> = {
   plots: { title: "Plots", icon: ChartLine, landsIn: "UX3" },
   generator: { title: "Generator", icon: Zap, landsIn: "UX5" },
   meters: { title: "Meters", icon: Gauge, landsIn: "UX4" },
-  console: { title: "Console", icon: ScrollText, landsIn: "UX2" },
+  console: {
+    title: "Console",
+    icon: ScrollText,
+    landsIn: "UX2",
+    body: () => <ConsolePanel />,
+  },
   "data-table": { title: "Data table", icon: Table2, landsIn: "UX6" },
   "op-table": { title: "OP table", icon: Table2, landsIn: "UX4" },
 };

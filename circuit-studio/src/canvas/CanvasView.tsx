@@ -7,7 +7,10 @@
 import { useEffect, useRef } from "react";
 import { snapPoint } from "../editor/snapping.ts";
 import { useEditorStore, wirePreview } from "../editor/store.ts";
-import type { SchematicDoc } from "../schematic/types.ts";
+import { computeConnectivity } from "../schematic/connectivity.ts";
+import { referenceOf } from "../schematic/instances.ts";
+import { probesOf, toggleProbe } from "../schematic/probes.ts";
+import { allocId, type SchematicDoc } from "../schematic/types.ts";
 import {
   animateTo,
   type CameraAnimator,
@@ -194,11 +197,62 @@ export function CanvasView(): React.ReactNode {
     const onClick = (e: MouseEvent): void => {
       const { pos } = snappedNow();
       const store = useEditorStore.getState();
+      // Probe tool (UX2-T6): click a wire → voltage probe on that net; click
+      // a symbol/pin → current probe on that element. Re-click toggles off.
+      if (store.tool.k === "idle" && store.tool.tool === "probe") {
+        const hit = indexRef.current.hit(pos, 300);
+        if (hit !== null) {
+          placeProbe(hit, pos);
+        }
+        return;
+      }
       store.dispatch({ t: "click" }, pos, indexRef.current.hit(pos, 300) !== null, {
         shift: e.shiftKey,
         alt: e.altKey,
         ctrl: e.ctrlKey || e.metaKey,
       });
+    };
+
+    /** Resolve the probe target from a hit and toggle it on the document. */
+    const placeProbe = (
+      hit: NonNullable<ReturnType<SpatialIndex["hit"]>>,
+      pos: { x: number; y: number },
+    ): void => {
+      const doc = useEditorStore.getState().doc;
+      const connectivity = computeConnectivity(doc);
+      let spec: { kind: "voltage" | "current"; target: string } | null = null;
+      if (hit.kind === "wire") {
+        const net = connectivity.wireNet.get(hit.id);
+        if (net !== undefined) {
+          spec = { kind: "voltage", target: net.name };
+        }
+      } else if (hit.kind === "pin") {
+        const [instId, pinId] = hit.id.split(":");
+        if (instId !== undefined && pinId !== undefined) {
+          // Pin → net voltage probe (stronger signal for measurements).
+          const net = connectivity.pinNet.get(hit.id);
+          if (net !== undefined) {
+            spec = { kind: "voltage", target: net.name };
+          }
+        }
+      } else if (hit.kind === "symbol") {
+        const inst = doc.symbols.find((s) => s.id === hit.id);
+        if (inst !== undefined) {
+          spec = { kind: "current", target: referenceOf(inst) };
+        }
+      }
+      if (spec === null || spec.target === "") {
+        return;
+      }
+      const { id, nextId } = allocId(doc, "p");
+      const nextProbes = toggleProbe(probesOf(doc), {
+        kind: spec.kind,
+        target: spec.target,
+        x: pos.x,
+        y: pos.y,
+        id,
+      });
+      useEditorStore.getState().setDoc({ ...doc, probes: nextProbes, nextId, rev: doc.rev + 1 });
     };
 
     const onDblClick = (): void => {

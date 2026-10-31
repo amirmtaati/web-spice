@@ -209,8 +209,23 @@ export interface SchematicDoc {
   readonly labels: readonly NetLabel[];
   readonly texts: readonly TextNote[];
   readonly noConnects: readonly NoConnectFlag[];
+  /** Probe marks (UX2-T6): v/i probes → `.probe` cards on extraction. */
+  readonly probes?: readonly ProbeMark[];
   readonly grid: number;
   readonly nextId: number;
+}
+
+/** User-placed v/i probe (scope channel; color derives from --sig-N). */
+export interface ProbeMark {
+  readonly id: string;
+  readonly kind: "voltage" | "current";
+  /** Voltage: net name; current: element name (netlist reference). */
+  readonly target: string;
+  /** Canvas anchor (near the pin/wire the probe was placed on). */
+  readonly x: number;
+  readonly y: number;
+  /** Scope channel, 1-based. */
+  readonly channel: number;
 }
 
 export const emptyDoc = (title = "Untitled"): SchematicDoc => ({

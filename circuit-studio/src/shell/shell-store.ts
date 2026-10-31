@@ -14,10 +14,15 @@ interface ShellState {
   readonly presetNonce: number;
   readonly projectName: string;
   readonly dirty: boolean;
+  /** Last panel-focus request (commands → shell bridge), null initially. */
+  readonly focusPanel: { readonly panelId: string; readonly nonce: number } | null;
   setPreset: (preset: PresetId) => void;
   setProjectName: (name: string) => void;
   markDirty: (dirty: boolean) => void;
+  requestPanelFocus: (panelId: string) => void;
 }
+
+let focusNonce = 0;
 
 export const useShellStore = create<ShellState>((set) => ({
   projectId: DEFAULT_PROJECT_ID,
@@ -25,7 +30,12 @@ export const useShellStore = create<ShellState>((set) => ({
   presetNonce: 0,
   projectName: "Untitled circuit",
   dirty: false,
+  focusPanel: null,
   setPreset: (preset) => set((state) => ({ preset, presetNonce: state.presetNonce + 1 })),
   setProjectName: (projectName) => set({ projectName, dirty: true }),
   markDirty: (dirty) => set({ dirty }),
+  requestPanelFocus: (panelId) => {
+    focusNonce += 1;
+    set({ focusPanel: { panelId, nonce: focusNonce } });
+  },
 }));

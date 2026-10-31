@@ -7,7 +7,10 @@
 import { THEMES } from "../app/theme.ts";
 import { zoomToFit } from "../canvas/CanvasView.tsx";
 import { useEditorStore } from "../editor/store.ts";
+import { AMP_EXAMPLE, RC_EXAMPLE } from "../netlist/examples.ts";
 import { useShellStore } from "../shell/shell-store.ts";
+import { getSimController } from "../sim/controller.ts";
+import { useSimStore } from "../stores/sim-store.ts";
 import { useUiStore } from "../stores/ui-store.ts";
 import { type CommandDef, useCommandRegistry } from "./registry.ts";
 
@@ -48,6 +51,15 @@ export function shellCommands(): CommandDef[] {
       keywords: ["search", "commands", "fuzzy"],
       source: SOURCE,
       run: () => registry.setPaletteOpen(true),
+    },
+    {
+      id: "view.console",
+      title: "Toggle console panel",
+      category: "View",
+      shortcut: "Mod+`",
+      keywords: ["log", "engine", "warnings", "output"],
+      source: SOURCE,
+      run: () => useShellStore.getState().requestPanelFocus("console"),
     },
     {
       id: "help.shortcuts",
@@ -143,12 +155,85 @@ export function shellCommands(): CommandDef[] {
       run: () => setTool("probe"),
     },
 
-    // ── Simulation control (§6.1; wired with UX2/UX5) ────────────────────
-    disabled("sim.run", "Run analysis", "Simulate", "F5"),
-    disabled("sim.stop", "Stop analysis", "Simulate", "Shift+F5"),
-    disabled("sim.pause", "Pause / resume", "Simulate", "F6"),
-    disabled("sim.step", "Step (live mode)", "Simulate", "F7"),
-    disabled("sim.live", "Toggle live interactive mode", "Simulate", "Mod+L"),
+    // ── Simulation control (§6.1, wired UX2-T3) ──────────────────────────
+    {
+      id: "sim.run",
+      title: "Run / stop analysis",
+      category: "Simulate",
+      shortcut: "F5",
+      keywords: ["simulate", "start", "run"],
+      source: SOURCE,
+      run: () => void getSimController().run(),
+    },
+    {
+      id: "sim.stop",
+      title: "Stop analysis",
+      category: "Simulate",
+      shortcut: "Shift+F5",
+      source: SOURCE,
+      run: () => getSimController().stop(),
+    },
+    {
+      id: "sim.pause",
+      title: "Pause / resume",
+      category: "Simulate",
+      shortcut: "F6",
+      source: SOURCE,
+      run: () => getSimController().togglePause(),
+    },
+    {
+      id: "sim.step",
+      title: "Step (live mode)",
+      category: "Simulate",
+      shortcut: "F7",
+      source: SOURCE,
+      run: () => getSimController().step(),
+    },
+    {
+      id: "sim.live",
+      title: "Toggle live interactive mode",
+      category: "Simulate",
+      shortcut: "Mod+L",
+      keywords: ["interactive", "realtime"],
+      source: SOURCE,
+      run: () => {
+        const s = useSimStore.getState();
+        if (s.analysisKind !== "tran") {
+          s.setAnalysisKind("tran");
+          s.setLive(true);
+        } else {
+          s.setLive(!s.live);
+        }
+      },
+    },
+    {
+      id: "sim.load-example",
+      title: "Load example: RC charging (τ = 1 ms)",
+      category: "Simulate",
+      keywords: ["example", "template", "rc", "capacitor", "charging"],
+      source: SOURCE,
+      run: () => {
+        void getSimController()
+          .loadSpice(RC_EXAMPLE)
+          .catch(() => {
+            /* error surfaces via banner + console */
+          });
+      },
+    },
+    {
+      id: "sim.load-example-amp",
+      title: "Load example: inverting amplifier (gain −10)",
+      category: "Simulate",
+      keywords: ["example", "template", "amplifier", "opamp", "op-amp", "inverting", "ac"],
+      source: SOURCE,
+      run: () => {
+        void getSimController()
+          .loadSpice(AMP_EXAMPLE)
+          .catch(() => {
+            /* error surfaces via banner + console */
+          });
+      },
+    },
 
     // ── Editing (UX1) ────────────────────────────────────────────────────
     {
@@ -195,13 +280,12 @@ export function shellCommands(): CommandDef[] {
     disabled("edit.copy", "Copy selection", "Edit", "Mod+C"),
     disabled("edit.paste", "Paste", "Edit", "Mod+V"),
     disabled("edit.duplicate", "Duplicate selection", "Edit", "Mod+D"),
-    disabled("edit.delete", "Delete selection", "Edit", "Delete"),
+    // edit.delete / edit.rotate / edit.mirrorX are registered (wired) above;
+    // duplicate ids would silently shadow the wired bodies with stubs.
     disabled("edit.move", "Move selection", "Edit", "M"),
     disabled("edit.drag", "Drag (copy-move)", "Edit", "G"),
     disabled("edit.value", "Edit value", "Edit", "V", ["properties"]),
     disabled("edit.properties", "Edit properties", "Edit", "E"),
-    disabled("edit.rotate", "Rotate", "Edit", "R"),
-    disabled("edit.mirrorX", "Mirror X", "Edit", "X"),
     disabled("edit.mirrorY", "Mirror Y", "Edit", "Y"),
     disabled("tool.label", "Place net label", "Edit", "L"),
 
@@ -210,7 +294,7 @@ export function shellCommands(): CommandDef[] {
     disabled("view.currents", "Show element currents", "View", "Mod+Shift+I"),
     disabled("view.power", "Show power", "View", "Mod+Shift+P"),
     disabled("view.resultsTable", "Results table", "Measure", "Mod+Shift+T"),
-    disabled("view.console", "Toggle console", "View", "Mod+`"),
+    // view.console is registered (wired) above — the §6.6 Ctrl+` binding.
     {
       id: "view.zoomFit",
       title: "Zoom to fit",

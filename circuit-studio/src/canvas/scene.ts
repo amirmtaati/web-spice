@@ -9,6 +9,7 @@ import type { Rect, Vec2 } from "../geometry.ts";
 import { rectContains, transformPoint } from "../geometry.ts";
 import { fieldAnchor, instanceBounds, pinsOf, referenceOf } from "../schematic/instances.ts";
 import { normalizeWires } from "../schematic/normalize.ts";
+import { probesOf } from "../schematic/probes.ts";
 import type { SchematicDoc, Selection } from "../schematic/types.ts";
 import { symbolById as defOf } from "../symbols/index.ts";
 import { type CameraState, lodFor } from "./camera.ts";
@@ -23,7 +24,8 @@ export type Layer =
   | "text"
   | "erc"
   | "overlay"
-  | "selection";
+  | "selection"
+  | "probe";
 
 export type DrawOp =
   | { readonly layer: Layer; readonly op: "line"; readonly pts: readonly Vec2[] }
@@ -42,6 +44,8 @@ export type DrawOp =
       readonly at: Vec2;
       readonly r: number;
       readonly fill?: boolean;
+      /** Palette key override (e.g. "sig3" for probe channels, §4.1). */
+      readonly colorKey?: string;
     }
   | {
       readonly layer: Layer;
@@ -66,6 +70,8 @@ export type DrawOp =
       readonly size: number;
       readonly align?: "left" | "center";
       readonly bold?: boolean;
+      /** Palette key override (probe channels, §4.1). */
+      readonly colorKey?: string;
     }
   | { readonly layer: Layer; readonly op: "xCross"; readonly at: Vec2; readonly r: number };
 
@@ -147,6 +153,23 @@ export function buildScene(
   }
   for (const nc of doc.noConnects) {
     ops.push({ layer: "text", op: "xCross", at: nc.at, r: 280 });
+  }
+
+  // Probe flags (UX2-T6): channel-colored circle + channel glyph.
+  for (const probe of probesOf(doc)) {
+    const at = { x: probe.x, y: probe.y };
+    const key = `sig${((probe.channel - 1) % 8) + 1}`;
+    const glyph = probe.kind === "voltage" ? String(probe.channel) : `i${probe.channel}`;
+    ops.push({ layer: "probe", op: "circle", at, r: 150, colorKey: key });
+    ops.push({
+      layer: "probe",
+      op: "text",
+      at: { x: at.x, y: at.y - 210 },
+      text: glyph,
+      size: 260,
+      align: "center",
+      colorKey: key,
+    });
   }
 
   // Tool overlays.

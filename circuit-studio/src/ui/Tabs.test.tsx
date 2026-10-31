@@ -61,6 +61,13 @@ describe("Tabs", () => {
     const { container } = render(
       <Tabs ariaLabel="Snapshot" items={[{ id: "one", label: "One", content: <div>1</div> }]} />,
     );
-    expect(container.firstElementChild?.outerHTML).toMatchSnapshot();
+    // Radix derives DOM ids from React's useId counter, which shifts with the
+    // number of components rendered earlier in the shared module registry —
+    // mask them so the snapshot stays reviewable and order-independent.
+    const html = (container.firstElementChild?.outerHTML ?? "").replace(
+      /radix-_r_[^_]*_-/g,
+      "radix-_ID_-",
+    );
+    expect(html).toMatchSnapshot();
   });
 });

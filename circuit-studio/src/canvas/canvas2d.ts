@@ -11,6 +11,9 @@ export type Palette = Readonly<Record<string, string>>;
 
 /** Read the current theme's canvas tokens into a palette. */
 export function readPalette(): Palette {
+  if (typeof globalThis.document === "undefined") {
+    return {}; // non-DOM context (tests): renderers require a document anyway
+  }
   const css = getComputedStyle(globalThis.document.documentElement);
   const get = (name: string): string => css.getPropertyValue(name).trim();
   return {
@@ -27,6 +30,14 @@ export function readPalette(): Palette {
     overlay: get("--accent"),
     guide: get("--guide"),
     ghost: get("--ghost"),
+    sig1: get("--sig-1"),
+    sig2: get("--sig-2"),
+    sig3: get("--sig-3"),
+    sig4: get("--sig-4"),
+    sig5: get("--sig-5"),
+    sig6: get("--sig-6"),
+    sig7: get("--sig-7"),
+    sig8: get("--sig-8"),
   };
 }
 
@@ -41,6 +52,7 @@ const LAYER_COLOR: Readonly<Record<string, readonly string[]>> = {
   erc: ["wire"],
   overlay: ["overlay"],
   selection: ["symbolSelected"],
+  probe: ["overlay"],
 };
 
 /** Line widths in doc units (≈ 6 mil default, master §9.5). */
@@ -109,6 +121,16 @@ export function renderScene(
       ctx.fillStyle = ctx.strokeStyle;
       const w = LAYER_WIDTH[op.layer] ?? 40;
       ctx.lineWidth = Math.max(w, 1 / t.scale);
+    }
+    // Per-op color override (probe channels read sig tokens, §4.1).
+    if (op.op === "circle" || op.op === "text") {
+      if (op.colorKey !== undefined) {
+        const c = palette[op.colorKey];
+        if (c !== undefined && c !== "") {
+          ctx.strokeStyle = c;
+          ctx.fillStyle = c;
+        }
+      }
     }
     switch (op.op) {
       case "dot":
@@ -192,7 +214,13 @@ export function exportSvg(
   }
   for (const op of ops) {
     if (op.layer === "grid") continue; // grid is screen furniture, not content
-    const color = colorFor(palette, op.layer, op.layer === "selection");
+    let color = colorFor(palette, op.layer, op.layer === "selection");
+    if ((op.op === "circle" || op.op === "text") && op.colorKey !== undefined) {
+      const c = palette[op.colorKey];
+      if (c !== undefined && c !== "") {
+        color = c;
+      }
+    }
     const stroke = `stroke="${color}" stroke-width="${LAYER_WIDTH[op.layer] ?? 40}" fill="none" stroke-linecap="round"`;
     switch (op.op) {
       case "dot":

@@ -131,6 +131,7 @@
   },
   "client": {
     "names": [
+      "EngineError",
       "InProcessTransport",
       "SimulatorClientImpl",
       "basicCircuit",
@@ -142,6 +143,7 @@
       "runClientConformance"
     ],
     "kinds": {
+      "EngineError": "function",
       "InProcessTransport": "function",
       "SimulatorClientImpl": "function",
       "basicCircuit": "function",

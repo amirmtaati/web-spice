@@ -4,6 +4,29 @@
 
 export type { EngineReply, SessionClock } from "@spicekit/core";
 export type {
+  AnalysisRequest,
+  Circuit,
+  DcSweep,
+  Element,
+  EngineCapabilities,
+  EngineErrorPayload,
+  EngineLimits,
+  Expr,
+  MeasureResult,
+  MeasureSpec,
+  NodeId,
+  ParamTarget,
+  ProbeSpec,
+  RunStats,
+  SignalInfo,
+  SimOptions,
+  Waveform,
+} from "@spicekit/protocol";
+// Protocol re-exports (AGENTS.md §0: the client re-exports every type the UI
+// needs — hosts never deep-import @spicekit/protocol). Type-only except
+// EngineError, which UIs need for `instanceof` (AGENTS.md §7.3).
+export { EngineError } from "@spicekit/protocol";
+export type {
   DataChunk,
   EngineInfo,
   LoadResult,
