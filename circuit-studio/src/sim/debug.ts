@@ -4,6 +4,8 @@
  * production (read-only handles, no secrets) and invaluable for bug reports.
  */
 
+import { scopePipeline } from "../instruments/scope/scope-data.ts";
+import { useScopeStore } from "../instruments/scope/scope-store.ts";
 import { useShellStore } from "../shell/shell-store.ts";
 import { attachResultStoreDebug, resultStore } from "../stores/result-store.ts";
 import { useSimStore } from "../stores/sim-store.ts";
@@ -20,6 +22,8 @@ export function installStudioDebug(): void {
   attachResultStoreDebug(handles);
   handles.simStore = useSimStore;
   handles.shellStore = useShellStore;
+  handles.scopeStore = useScopeStore;
+  handles.scopePipeline = scopePipeline;
   handles.sim = () => getSimController();
   handles.frames = () => frameStats();
   /** Journey helper: signal samples + axis (interleaved [x, y, …]). */

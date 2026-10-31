@@ -19,7 +19,7 @@ C1 out 0 {C}
 `,
   params: { V: "5", R: "1k", C: "1u", WIDTH: "10m", WIDTH2: "20m" },
   analysis: { kind: "tran", tstep: 1e-5, tstop: 5e-3 },
-  probes: ["v(out)", "i(C1)"],
+  probes: ["v(out)"],
   annotations: [
     { kind: "hline", fraction: 0.632, label: "63.2 % of V" },
     { kind: "vline", at: "tau", label: "τ = R·C" },
@@ -42,7 +42,7 @@ C1 out 0 {C}
 `,
   params: { V: "5", R: "1k", C: "1u", WIDTH: "1n", WIDTH2: "10m" },
   analysis: { kind: "tran", tstep: 1e-5, tstop: 5e-3 },
-  probes: ["v(out)", "i(C1)"],
+  probes: ["v(out)"],
   annotations: [
     { kind: "hline", fraction: 0.368, label: "36.8 % of V₀" },
     { kind: "vline", at: "tau", label: "τ = R·C" },

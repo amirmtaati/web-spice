@@ -7,6 +7,8 @@
 import { THEMES } from "../app/theme.ts";
 import { zoomToFit } from "../canvas/CanvasView.tsx";
 import { useEditorStore } from "../editor/store.ts";
+import { runRecipe } from "../instruments/experiments/apply.ts";
+import { RECIPES } from "../instruments/experiments/recipes.ts";
 import { AMP_EXAMPLE, RC_EXAMPLE } from "../netlist/examples.ts";
 import { useShellStore } from "../shell/shell-store.ts";
 import { getSimController } from "../sim/controller.ts";
@@ -307,7 +309,23 @@ export function shellCommands(): CommandDef[] {
     disabled("view.toggleGrid", "Toggle grid", "View", "Mod+G"),
     disabled("view.toggleSnap", "Toggle snap", "View", "Mod+Shift+G"),
     disabled("view.highlightNet", "Highlight net", "View", "`"),
+    // Experiments (UX3-T7): one palette action per lab preset — the same
+    // recipes the scope's Experiments ▸ menu offers. Mod+E opens focus hint.
     disabled("view.experiments", "Experiments menu", "Measure", "Mod+E"),
+    ...RECIPES.map(
+      (recipe): CommandDef => ({
+        id: `experiment.${recipe.id}`,
+        title: `Experiment: ${recipe.title}`,
+        category: "Measure",
+        keywords: ["experiment", "lab", ...recipe.id.split("-")],
+        source: SOURCE,
+        run: () => {
+          void runRecipe(recipe).catch(() => {
+            /* load errors surface via the banner + console */
+          });
+        },
+      }),
+    ),
     disabled("view.sweep", "Parameter sweep builder", "Measure", "Mod+Alt+R"),
     disabled("file.export", "Export menu (SVG/PDF/PNG)", "File", "Mod+Alt+E"),
   ];
