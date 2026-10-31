@@ -1,5 +1,8 @@
 /** Component tests: Toast stack + ErrorBoundary (UX0-T2/T7). */
-import "../test/dom.ts";
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { describe, expect, it, mock } from "bun:test";
 import { fireEvent, render, within } from "@testing-library/react";
 import { ErrorBoundary } from "./ErrorBoundary.tsx";
@@ -85,13 +88,16 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>,
     );
     expect(within(document.body).getByRole("alert")).toBeDefined();
-    fireEvent.click(within(document.body).getByRole("button", { name: "Retry" }));
+    // Heal the children BEFORE retrying: clicking Retry re-renders the
+    // boundary with the current children, so a still-throwing child would be
+    // caught again and the error state would immediately re-assert.
     shouldThrow = false;
     rerender(
       <ErrorBoundary region="console">
         {shouldThrow ? <Boom /> : <div data-testid="healed">healed</div>}
       </ErrorBoundary>,
     );
+    fireEvent.click(within(document.body).getByRole("button", { name: "Retry" }));
     expect(getByTestId("healed")).toBeDefined();
     expect(queryByRole("alert")).toBeNull();
   });

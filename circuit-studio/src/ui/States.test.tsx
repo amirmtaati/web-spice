@@ -1,5 +1,8 @@
 /** Component tests: state chrome — Panel, EmptyState, ErrorState, misc (UX0-T2). */
-import "../test/dom.ts";
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { describe, expect, it, mock } from "bun:test";
 import { fireEvent, render } from "@testing-library/react";
 import { Badge } from "./Badge.tsx";
@@ -26,7 +29,7 @@ describe("Panel", () => {
 
   it("matches snapshot", () => {
     const { container } = render(<Panel title="Console">body</Panel>);
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container.firstElementChild?.outerHTML).toMatchSnapshot();
   });
 });
 

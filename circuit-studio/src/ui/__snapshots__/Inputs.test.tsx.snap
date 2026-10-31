@@ -1,0 +1,5 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`Field matches snapshot 1`] = `"<div class="flex flex-col gap-1"><label class="text-xs font-medium text-muted">Capacitance<span class="ml-1 text-faint">(F)</span></label><div class="flex items-center gap-1.5"><input></div></div>"`;
+
+exports[`Select matches snapshot 1`] = `"<select aria-label="Analysis" class="h-[var(--ctl-h)] appearance-none rounded-md border border-line bg-panel px-2 pr-6 text-sm text-fg hover:border-line-strong disabled:opacity-40 bg-[length:16px] bg-[right_4px_center] bg-no-repeat"><option value="tran">Tran</option></select>"`;

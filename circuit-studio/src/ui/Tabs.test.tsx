@@ -1,5 +1,8 @@
 /** Component tests: Tabs (Radix wrapper, UX0-T2). */
-import "../test/dom.ts";
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { describe, expect, it } from "bun:test";
 import { fireEvent, render } from "@testing-library/react";
 import { Tabs } from "./Tabs.tsx";
@@ -17,6 +20,8 @@ describe("Tabs", () => {
     );
     expect(view.getByRole("tablist", { name: "Instrument dock" })).toBeDefined();
     const consoleTab = view.getByRole("tab", { name: "Console" });
+    // Radix activates tabs on mousedown, not click.
+    fireEvent.mouseDown(consoleTab);
     fireEvent.click(consoleTab);
     expect(consoleTab.getAttribute("aria-selected")).toBe("true");
     expect(view.getByText("console body")).toBeDefined();
@@ -37,7 +42,7 @@ describe("Tabs", () => {
         ]}
       />,
     );
-    fireEvent.click(getByRole("tab", { name: "A" }));
+    fireEvent.mouseDown(getByRole("tab", { name: "A" }));
     expect(current).toBe("a");
     rerender(
       <Tabs
@@ -56,6 +61,6 @@ describe("Tabs", () => {
     const { container } = render(
       <Tabs ariaLabel="Snapshot" items={[{ id: "one", label: "One", content: <div>1</div> }]} />,
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container.firstElementChild?.outerHTML).toMatchSnapshot();
   });
 });

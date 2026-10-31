@@ -2,6 +2,47 @@
 
 One entry per milestone or notable change, newest first (SPEC §22).
 
+## UX0 follow-up — UI test suite repair (2026-10-31)
+
+**Status: complete.** The UX0 commit had landed latent test-suite defects
+the final gate run never reached (the suite was OOM-killed mid-run by the
+Button snapshot diff, so files after `ui/Tabs` never executed). All four
+gates now run to completion and are green: `bun run check`, `bun test
+circuit-studio` — **100 UI tests**, `bun run build:studio`, `bun run e2e`
+— 5 Playwright journeys on the production build (after reinstalling the
+Playwright Chromium cache, which the sandbox reset had dropped).
+
+- **Root cause 1 — snapshot OOM:** bun's snapshot serializer walked React
+  fiber internals (`__reactFiber$*`) recursively into a **43 MB**
+  `Button.test.tsx.snap`; every run then diffed a 1.7 M-line object and the
+  kernel SIGKILLed the suite at that file. All six DOM snapshots now
+  serialize `outerHTML` strings (small, stable, reviewable).
+- **Root cause 2 — Radix portals never mounted:** ES imports hoist, so
+  component modules evaluated *before* `setupDom()` registered happy-dom;
+  `@radix-ui/react-use-layout-effect` captured a no-op stub at module-load
+  time and every Radix portal silently never mounted. `src/test/dom.ts` now
+  registers happy-dom **at module level** (import order is load-bearing) and
+  `setupDom()` only adds the per-file RTL cleanup hook — bun shares the
+  module cache across test files, so module-level `afterEach` would only run
+  for the first importing file.
+- **Radix interaction semantics fixed in tests:** Tabs activate on
+  mousedown; menus open on pointerdown (and the post-open trigger click was
+  removed — outside content is `aria-hidden` while a menu is open); tooltips
+  open on pointermove. Tabs' accessible name moved onto the `Tabs.List`
+  (named tablist, correct ARIA).
+- **ErrorBoundary test:** heal children before clicking Retry (Retry
+  re-renders the boundary with the current children, so a still-throwing
+  child re-asserts the error state).
+- **NumberInput typing flows** (engineering entry + Enter commit, invalid
+  rejection + blur restore, Escape cancel) moved to future e2e coverage:
+  happy-dom cannot synthesize React 19 controlled-input `onChange`
+  (verified against the value-tracker dance and raw `input`/`change`
+  events). Non-typing behaviors (arrow stepping, clamping) remain unit
+  tested; e2e coverage lands with the UX1-T8 inspector journey.
+- **dep-cruiser:** the `runtime-agnostic-no-bun-node` rule now exempts the
+  UI's `src/test/` helper directory (dom.ts legitimately imports
+  `bun:test`); product code in `src/**` remains fully covered.
+
 ## UX0 — Design system, shell, and command foundation (2026-10-31)
 
 **Status: complete.** All eight tasks (UX0-T1…T8) landed; gates green

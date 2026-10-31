@@ -1,4 +1,8 @@
 /** Preset + guard tests (UX0-T4): panel completeness, fractions, persistence. */
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { beforeEach, describe, expect, it } from "bun:test";
 import { loadLayout, parseLayout, saveLayout } from "./layout-persistence.ts";
 import {

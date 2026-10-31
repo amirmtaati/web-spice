@@ -1,5 +1,8 @@
 /** Component tests: shortcut overlay (UX0-T5) — renders the registry table. */
-import "../test/dom.ts";
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { beforeEach, describe, expect, it } from "bun:test";
 import { render, within } from "@testing-library/react";
 import { act } from "react";

@@ -1,4 +1,8 @@
 /** Shortcut grammar tests (UX0-T5): normalization, display, matching. */
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { describe, expect, it } from "bun:test";
 import { eventMatches, formatShortcut, isTextEntryTarget, normalizeShortcut } from "./shortcut.ts";
 

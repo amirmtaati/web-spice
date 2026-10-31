@@ -1,5 +1,8 @@
 /** Component tests: Button + IconButton (UX0-T2). */
-import "../test/dom.ts";
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { describe, expect, it, mock } from "bun:test";
 import { fireEvent, render } from "@testing-library/react";
 import { Button } from "./Button.tsx";
@@ -36,7 +39,7 @@ describe("Button", () => {
         Snapshot
       </Button>,
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container.firstElementChild?.outerHTML).toMatchSnapshot();
   });
 });
 

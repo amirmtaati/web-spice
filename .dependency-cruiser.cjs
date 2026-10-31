@@ -41,9 +41,9 @@ module.exports = {
       name: "runtime-agnostic-no-bun-node",
       severity: "error",
       comment:
-        "protocol/core/client and UI code are browser-target (SPEC §2.2); test files run under bun:test and are exempt.",
+        "protocol/core/client and UI code are browser-target (SPEC §2.2); test files run under bun:test and are exempt, as is the UI's src/test/ helper directory (dom.ts registers the happy-dom test environment and bun:test cleanup hooks).",
       from: {
-        path: "^(spicekit/packages/(protocol|core|client)/src|circuit-studio/src)(?!.+\\.(test|e2e)\\.(ts|tsx))",
+        path: "^(spicekit/packages/(protocol|core|client)/src|circuit-studio/src)(?!.+\\.(test|e2e)\\.(ts|tsx))(?!/test/)",
       },
       to: { path: "^(bun|node):" },
     },

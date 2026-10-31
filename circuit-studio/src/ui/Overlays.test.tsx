@@ -1,5 +1,8 @@
 /** Component tests: Tooltip + Popover + Menu (Radix overlays, UX0-T2). */
-import "../test/dom.ts";
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { describe, expect, it, mock } from "bun:test";
 import { fireEvent, render, within } from "@testing-library/react";
 import { Menu, MenuItem, MenuLabel } from "./Menu.tsx";
@@ -17,7 +20,8 @@ describe("Tooltip", () => {
     );
     const trigger = view.getByRole("button", { name: "Run" });
     fireEvent.pointerEnter(trigger);
-    fireEvent.mouseMove(trigger);
+    // Radix tooltips open on pointermove (with a non-touch pointerType).
+    fireEvent.pointerMove(trigger);
     // Tooltip portals to document.body — query the live document.
     const body = within(document.body);
     const tip = await body.findByText("Run simulation", {}, { timeout: 2000 });
@@ -46,7 +50,7 @@ describe("Popover", () => {
         <div>x</div>
       </Popover>,
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container.firstElementChild?.outerHTML).toMatchSnapshot();
   });
 });
 
@@ -61,7 +65,10 @@ describe("Menu", () => {
         </MenuItem>
       </Menu>,
     );
-    fireEvent.click(view.getByRole("button", { name: "Export" }));
+    // Radix menus open on pointerdown; the click that follows in real usage
+    // would only toggle, and once open the trigger is aria-hidden by the
+    // dismissable layer's outside-marking.
+    fireEvent.pointerDown(view.getByRole("button", { name: "Export" }));
     const body = within(document.body);
     const item = body.getByText("SPICE netlist");
     expect(body.getByText("Export as")).toBeDefined();
@@ -78,7 +85,7 @@ describe("Menu", () => {
         </MenuItem>
       </Menu>,
     );
-    fireEvent.click(view.getByRole("button", { name: "File" }));
+    fireEvent.pointerDown(view.getByRole("button", { name: "File" }));
     fireEvent.click(within(document.body).getByText("Locked"));
     expect(onSelect).not.toHaveBeenCalled();
   });

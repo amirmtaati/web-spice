@@ -28,9 +28,11 @@ export function Tabs({
       value={value}
       onValueChange={onValueChange}
       className={cn("flex min-h-0 flex-col", className)}
-      aria-label={ariaLabel}
     >
-      <RadixTabs.List className="flex shrink-0 items-center gap-1 border-b border-line px-1">
+      <RadixTabs.List
+        aria-label={ariaLabel}
+        className="flex shrink-0 items-center gap-1 border-b border-line px-1"
+      >
         {items.map((item) => (
           <RadixTabs.Trigger
             key={item.id}

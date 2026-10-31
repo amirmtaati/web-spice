@@ -4,7 +4,10 @@
  * (real Chromium: happy-dom cannot synthesize React 19's controlled-input
  * onChange); the fuzzy scoring itself is unit-tested below.
  */
-import "../test/dom.ts";
+import { setupDom } from "../test/dom.ts";
+
+setupDom();
+
 import { beforeEach, describe, expect, it } from "bun:test";
 import { render, within } from "@testing-library/react";
 import { act } from "react";
