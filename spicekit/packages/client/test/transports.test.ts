@@ -97,4 +97,48 @@ describe("in-process live regression (E4)", () => {
       client.dispose();
     }
   });
+
+  // Regression (UX2 F5-toggle e2e): a control op issued BEFORE the engine's
+  // runAccepted reply arrives used to carry runId "" and be rejected
+  // silently — the run became unstoppable. Controls must queue until the
+  // acceptance lands, then flush in order.
+  test("stop issued before runAccepted still resolves done", async () => {
+    const client = createInProcessClient();
+    try {
+      await client.connect();
+      await client.loadSpice("race stop\nV1 in 0 SIN(0 1 1k)\nR1 in out 1k\nRl out 0 1k\n.end\n");
+      const handle = client.run({
+        analysis: { kind: "tran", tstep: 1e-4, tstop: 1e9 },
+        stream: { mode: "live", realtimeFactor: 1 },
+      });
+      // No await between run() and stop(): the control races the accept.
+      handle.stop();
+      const stats = await handle.done;
+      expect(stats.timesteps).toBeGreaterThanOrEqual(0);
+    } finally {
+      client.dispose();
+    }
+  });
+
+  test("pause+resume queued before runAccepted apply in order", async () => {
+    const client = createInProcessClient();
+    try {
+      await client.connect();
+      await client.loadSpice("race pause\nV1 in 0 SIN(0 1 1k)\nR1 in out 1k\nRl out 0 1k\n.end\n");
+      const handle = client.run({
+        analysis: { kind: "tran", tstep: 1e-4, tstop: 1e9 },
+        stream: { mode: "live", realtimeFactor: 10 },
+      });
+      handle.pause(); // queued
+      handle.resume(); // queued — the run continues after flush
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 120);
+      });
+      handle.stop();
+      const stats = await handle.done;
+      expect(stats.timesteps).toBeGreaterThan(0);
+    } finally {
+      client.dispose();
+    }
+  });
 });

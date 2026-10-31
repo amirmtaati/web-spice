@@ -109,6 +109,13 @@ interface RunEntry {
   progressSubs: Set<(p: Progress) => void>;
   resolveDone?: (stats: RunStats) => void;
   rejectDone?: (err: Error) => void;
+  /**
+   * Control ops issued before the engine accepted the run (runAccepted in
+   * flight). They are flushed in order on acceptance — a stop/pause racing
+   * the accept must still apply, otherwise the run is unstoppable (UX2 F5
+   * toggle regression: control carried runId "" and the error was swallowed).
+   */
+  pendingControls: RunControlOp[];
 }
 
 export class SimulatorClientImpl implements SimulatorClient {
@@ -210,6 +217,7 @@ export class SimulatorClientImpl implements SimulatorClient {
       signals: [],
       dataSubs: new Set(),
       progressSubs: new Set(),
+      pendingControls: [],
     };
     this.runsByRequestId.set(requestId, entry);
     const handle = this.createHandle(entry);
@@ -324,9 +332,16 @@ export class SimulatorClientImpl implements SimulatorClient {
 
   /** Fire-and-forget run control (failures surface through `done`). */
   private sendControl(entry: RunEntry, op: RunControlOp): void {
+    if (entry.acceptedRunId === undefined) {
+      // runAccepted has not arrived yet — queue the op; it is flushed in
+      // order on acceptance. Sending early would carry runId "" and be
+      // rejected by the engine (silently, here).
+      entry.pendingControls.push(op);
+      return;
+    }
     void this.runRequest({
       type: "control",
-      payload: { runId: entry.acceptedRunId ?? "", op },
+      payload: { runId: entry.acceptedRunId, op },
     }).catch(() => {});
   }
 
@@ -384,6 +399,11 @@ export class SimulatorClientImpl implements SimulatorClient {
         if (entry !== undefined) {
           entry.acceptedRunId = message.payload.runId;
           this.runsByRunId.set(message.payload.runId, entry);
+          // Flush control ops that raced the acceptance, in issue order.
+          const queued = entry.pendingControls.splice(0);
+          for (const op of queued) {
+            this.sendControl(entry, op);
+          }
         }
       }
       return;
