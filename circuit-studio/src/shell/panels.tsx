@@ -17,13 +17,34 @@ import {
   Table2,
   Zap,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
 import { CanvasView } from "../canvas/CanvasView.tsx";
 import { ConsolePanel } from "../console/ConsolePanel.tsx";
 import { InspectorPanel } from "../inspector/InspectorPanel.tsx";
 import { LibraryPanel } from "../library/LibraryPanel.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
 import { ErrorBoundary } from "../ui/ErrorBoundary.tsx";
+
+// Instruments are lazy chunks (SPEC §15.1 budgets): uPlot + the DSP/plot
+// stack load on first panel open, not at app boot.
+const ScopePanel = lazy(() =>
+  import("../instruments/scope/ScopePanel.tsx").then((m) => ({ default: m.ScopePanel })),
+);
+const PlotsPanel = lazy(() =>
+  import("../instruments/plots/PlotsPanel.tsx").then((m) => ({ default: m.PlotsPanel })),
+);
+
+function PanelSuspense({ children }: { readonly children: ReactNode }): ReactNode {
+  return <Suspense fallback={<PanelLoading />}>{children}</Suspense>;
+}
+
+function PanelLoading(): ReactNode {
+  return (
+    <div className="flex h-full items-center justify-center" aria-busy="true">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
+    </div>
+  );
+}
 
 interface PanelSpec {
   readonly title: string;
@@ -43,8 +64,26 @@ const SPECS: Record<string, PanelSpec> = {
     landsIn: "UX1+",
     body: () => <InspectorPanel />,
   },
-  scope: { title: "Scope", icon: ChartLine, landsIn: "UX3" },
-  plots: { title: "Plots", icon: ChartLine, landsIn: "UX3" },
+  scope: {
+    title: "Scope",
+    icon: ChartLine,
+    landsIn: "UX3",
+    body: () => (
+      <PanelSuspense>
+        <ScopePanel />
+      </PanelSuspense>
+    ),
+  },
+  plots: {
+    title: "Plots",
+    icon: ChartLine,
+    landsIn: "UX3",
+    body: () => (
+      <PanelSuspense>
+        <PlotsPanel />
+      </PanelSuspense>
+    ),
+  },
   generator: { title: "Generator", icon: Zap, landsIn: "UX5" },
   meters: { title: "Meters", icon: Gauge, landsIn: "UX4" },
   console: {

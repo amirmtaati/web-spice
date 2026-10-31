@@ -271,6 +271,38 @@ class ResultStoreImpl {
     return this.channels.get(name)?.f64.readLast(count, out) ?? 0;
   }
 
+  /**
+   * Read the absolute-index window `[start, start+count)` of a signal into
+   * `out` (chronological), taking every `stride`-th sample when given.
+   * Samples already dropped off the ring (or not yet received) read as NaN.
+   * O(count/stride) — the scope's per-frame window copy.
+   */
+  readWindowInto(
+    name: string,
+    start: number,
+    count: number,
+    out: Float64Array,
+    stride = 1,
+  ): number {
+    const ch = this.channels.get(name);
+    if (ch === undefined || stride < 1) {
+      return 0;
+    }
+    const firstAvail = ch.f64.appended - ch.f64.length;
+    const from = Math.max(start, firstAvail);
+    const to = Math.min(start + count, ch.f64.appended);
+    const wanted = Math.min(Math.ceil((to - from) / stride), out.length);
+    let n = 0;
+    for (let k = 0; k < wanted; k++) {
+      out[k] = ch.f64.at(from - firstAvail + k * stride);
+      n += 1;
+    }
+    for (let k = n; k < out.length; k++) {
+      out[k] = Number.NaN;
+    }
+    return n;
+  }
+
   /** Display (Float32) window of a signal — same order as the f64 ring. */
   readDisplay(name: string): Float32Array {
     const ch = this.channels.get(name);

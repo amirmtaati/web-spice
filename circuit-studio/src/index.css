@@ -82,6 +82,17 @@ kbd {
   border-radius: var(--r-sm);
 }
 
+/*
+ * Scope plot routing (§6.7.1): the CursorOverlay canvas owns ALL pointer
+ * interaction inside the plot box. uPlot's own canvases must never
+ * intercept clicks (their internal cursor/drag is disabled), and the plot
+ * box clips its children so instrument chrome (legend/toolbar) stays
+ * clickable at any dock height.
+ */
+[data-panel="scope"] [data-testid="scope-plot"] .uplot canvas {
+  pointer-events: none;
+}
+
 /* Theme switch is instant (§4.2) — no transition on root surfaces. */
 :root[data-theme] {
   transition: none;

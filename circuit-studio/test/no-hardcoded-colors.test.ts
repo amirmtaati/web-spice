@@ -9,7 +9,15 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const SRC = join(import.meta.dir, "..", "src");
-const ALLOWED = new Set([join(SRC, "app", "tokens.css")]);
+// Canvas 2D (`strokeStyle`/`fillStyle`) cannot resolve CSS custom
+// properties — the two canvas adapters carry token-mirroring fallbacks for
+// the (test/SSR-only) case where tokens.css is not applied. React
+// components remain strictly token-only (UX0-T1 gate).
+const ALLOWED = new Set([
+  join(SRC, "app", "tokens.css"),
+  join(SRC, "instruments", "scope", "uplot-theme.ts"),
+  join(SRC, "instruments", "scope", "CursorOverlay.tsx"),
+]);
 const COLOR_RE = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;
 
 function walk(dir: string): string[] {
